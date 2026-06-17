@@ -109,8 +109,8 @@ main{max-width:1080px;margin:0 auto;padding:clamp(14px,3vw,26px)}
 /* scène : stream gauche · globe · stream droite */
 .stage{display:grid;grid-template-columns:1fr 1.55fr 1fr;gap:12px;align-items:stretch;margin-top:18px}
 .stage-stream{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--panel)}
-.stage-left{border-top:3px solid var(--russia)}
-.stage-right{border-top:3px solid var(--ukraine)}
+.stage-left{border-top:3px solid var(--ukraine)}
+.stage-right{border-top:3px solid var(--russia)}
 .stream-head{padding:8px 12px;font-weight:700;font-size:14px}
 .stream-frame{width:100%;aspect-ratio:16/9;border:0;background:#000}
 .stage-globe{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--shadow);background:radial-gradient(circle at 50% 40%,#0e1c2b,#070b11)}
@@ -218,6 +218,7 @@ main{max-width:1080px;margin:0 auto;padding:clamp(14px,3vw,26px)}
 .army-list li.you{border-color:#2c8;box-shadow:0 0 10px rgba(40,200,140,.2)}
 .army-russia .rk{color:#ff8d8d}.army-ukraine .rk{color:#9cc2ff}
 .rk{font-size:11px;letter-spacing:1px;text-align:center}
+.ava{width:24px;height:24px;border-radius:50%;object-fit:cover;display:block;margin:auto}
 .un{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rkn{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
 .msgs{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}

@@ -39,7 +39,7 @@ const CHATROOM = { russia: process.env.KICK_CHATROOM_RUSSIA || '', ukraine: proc
 const RATE_PER_MIN = Number(process.env.WAR_RATE) || (process.env.WAR_DEMO === '1' || process.argv[3] === 'demo' ? 0.22 : 0.05);
 const WAR_DURATION_DAYS = Number(process.env.WAR_DAYS) || 7;
 const RAGE_WINDOW_MS = 60000;
-const BOMB_THRESHOLD = 30;                                   // 30 spams = 1 bombe
+const BOMB_THRESHOLD = 5;                                    // 5 spams = 1 bombe
 const BOMB_COOLDOWN_MS = DEMO ? 60000 : 30 * 60 * 1000;      // 1 bombe / 30 min par camp
 const BOMB_DAMAGE = 2;
 const ASSAULT_LIMIT = 2;
@@ -148,14 +148,15 @@ function ingestCommand(side, n = 1) {
   const now = Date.now();
   for (let i = 0; i < n; i++) state.rage[side].hits.push(now);
 }
-function onChatMessage(side, user, text) { // <- brancher le chat Kick live ici
-  addToArmy(side, user, 1);
+function onChatMessage(side, user, text, id) { // <- chat Kick live
+  addToArmy(side, user, 1, id);
   if (String(text).toUpperCase().includes(CHANNELS[side].command)) ingestCommand(side, 1);
 }
-function addToArmy(side, name, msgs) {
+function addToArmy(side, name, msgs, id) {
   const a = state.army[side];
   if (!a[name]) a[name] = { msgs: 0, w: 1, viewer: false };
   a[name].msgs += msgs;
+  if (id && !a[name].id) a[name].id = id;
 }
 function pruneRage(side, now) {
   const arr = state.rage[side].hits, cut = now - RAGE_WINDOW_MS;
@@ -217,6 +218,8 @@ function endWar() { state.war.status = 'ended'; state.war.winner = state.russiaS
 // ---------------------------------------------------------------------------
 let appToken = null, appTokenExp = 0, lastChannelFetch = 0, liveErrLogged = false, liveLoggedRaw = false;
 const chatWS = {};
+const avatarCache = {}; // user_id -> url photo de profil
+let lastAvatarFetch = 0;
 
 async function getAppToken() {
   if (appToken && Date.now() < appTokenExp) return appToken;
@@ -254,6 +257,21 @@ async function fetchChannelsLive() {
 
 // l'API officielle ne renvoie pas le chatroom_id : on tente l'endpoint public (souvent
 // bloqué par Cloudflare côté serveur) ; sinon il faut le fournir via KICK_CHATROOM_*.
+// récupère les photos de profil des meilleurs soldats (par user_id)
+async function refreshAvatars() {
+  const ids = new Set();
+  for (const side of ['russia', 'ukraine']) {
+    const a = state.army[side];
+    Object.keys(a).sort((x, y) => a[y].msgs - a[x].msgs).slice(0, 10).forEach((n) => { if (a[n].id && !avatarCache[a[n].id]) ids.add(a[n].id); });
+  }
+  if (!ids.size) return;
+  const tok = await getAppToken();
+  const qs = [...ids].slice(0, 40).map((i) => 'id=' + i).join('&');
+  const r = await fetch('https://api.kick.com/public/v1/users?' + qs, { headers: { Authorization: 'Bearer ' + tok } });
+  const j = await r.json();
+  for (const u of (j.data || [])) if (u.user_id && u.profile_picture) avatarCache[u.user_id] = u.profile_picture;
+}
+
 async function resolveChatroom(side) {
   if (CHATROOM[side]) return CHATROOM[side];
   if (state.channels[side]._chatroomId) return state.channels[side]._chatroomId;
@@ -276,7 +294,8 @@ function connectChat(side, chatroomId) {
         if (m.event && m.event.indexOf('ChatMessage') >= 0) {
           const d = typeof m.data === 'string' ? JSON.parse(m.data) : m.data;
           const user = (d.sender && (d.sender.username || d.sender.slug)) || 'anon';
-          onChatMessage(side, user, d.content || '');
+          const uid = d.sender && (d.sender.id || d.sender.user_id);
+          onChatMessage(side, user, d.content || '', uid);
         }
       } catch {}
     });
@@ -297,6 +316,7 @@ async function tick() {
     lastChannelFetch = now;
     try { await fetchChannelsLive(); } catch (e) { if (!liveErrLogged) { console.error('[live] API Kick KO:', e.message); liveErrLogged = true; } }
   }
+  if (CONFIGURED && now - lastAvatarFetch > 30000) { lastAvatarFetch = now; refreshAvatars().catch(() => {}); }
 
   for (const key of ['russia', 'ukraine']) {
     const ch = state.channels[key], wasLive = prevLive[key];
@@ -325,7 +345,7 @@ async function tick() {
 // ---------------------------------------------------------------------------
 function rosterOf(side, myName) {
   const a = state.army[side];
-  const arr = Object.keys(a).map((n) => ({ name: n, msgs: Math.round(a[n].msgs), rank: rankTitle(a[n].msgs), viewer: !!a[n].viewer, you: n === myName }));
+  const arr = Object.keys(a).map((n) => ({ name: n, msgs: Math.round(a[n].msgs), rank: rankTitle(a[n].msgs), viewer: !!a[n].viewer, you: n === myName, avatar: (a[n].id && avatarCache[a[n].id]) || null }));
   arr.sort((x, y) => y.msgs - x.msgs);
   return { total: arr.length, top: arr.slice(0, 14) };
 }

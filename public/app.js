@@ -231,7 +231,7 @@ function renderArmy(side, roster) {
   ol.innerHTML = '';
   for (const u of roster.top) {
     const li = document.createElement('li'); if (u.you) li.className = 'you';
-    li.innerHTML = `<span class="rk">${rankIcon(u.rank)}</span><span class="un"></span><span class="rkn">${u.rank}</span><span class="msgs">${fmt(u.msgs)} msg</span>`;
+    li.innerHTML = `<span class="rk">${u.avatar ? `<img class="ava" src="${u.avatar}" alt="">` : rankIcon(u.rank)}</span><span class="un"></span><span class="rkn">${u.rank}</span><span class="msgs">${fmt(u.msgs)} msg</span>`;
     li.querySelector('.un').textContent = u.name + (u.viewer ? ' 👤' : '');
     ol.appendChild(li);
   }

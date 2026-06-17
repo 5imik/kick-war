@@ -178,9 +178,23 @@ window.Globe = (function () {
     return new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthWrite: false, transparent: true }));
   }
 
+  function loadAvatar(url, sprite, color) {
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const c = document.createElement('canvas'); c.width = c.height = 72; const g = c.getContext('2d');
+        g.save(); g.beginPath(); g.arc(36, 36, 34, 0, Math.PI * 2); g.clip(); g.drawImage(img, 0, 0, 72, 72); g.restore();
+        g.beginPath(); g.arc(36, 36, 34, 0, Math.PI * 2); g.lineWidth = 4; g.strokeStyle = '#' + new THREE.Color(color).getHexString(); g.stroke();
+        sprite.material.map = new THREE.CanvasTexture(c); sprite.material.needsUpdate = true;
+      } catch (e) {}
+    };
+    img.src = url;
+  }
+
   function setSoldiers(russia, ukraine) {
     if (!ok || !soldierGroup) return;
-    const key = (russia || []).map((s) => s.name).join(',') + '|' + (ukraine || []).map((s) => s.name).join(',');
+    const k = (l) => (l || []).map((s) => s.name + (s.avatar ? '#' : '')).join(',');
+    const key = k(russia) + '|' + k(ukraine);
     if (key === soldiersKey) return; soldiersKey = key;
     while (soldierGroup.children.length) soldierGroup.remove(soldierGroup.children[0]);
     const place = (list, side) => {
@@ -189,8 +203,9 @@ window.Globe = (function () {
         const ang = (i / 8) * Math.PI * 2;
         const p = latLng(m.lat + Math.cos(ang) * 9, m.lng + Math.sin(ang) * 12, R * 1.05);
         const sp = avatarSprite((s.name[0] || '?').toUpperCase(), COL[side]);
-        sp.position.copy(p); sp.scale.set(0.22, 0.22, 1);
+        sp.position.copy(p); sp.scale.set(0.24, 0.24, 1);
         soldierGroup.add(sp);
+        if (s.avatar) loadAvatar(s.avatar, sp, COL[side]);
       });
     };
     place(russia, 'russia'); place(ukraine, 'ukraine');
