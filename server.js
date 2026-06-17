@@ -61,6 +61,9 @@ const CITIES = [
   { name: 'Kebabgrad', x: 0.64, y: 0.22 }, { name: 'Biereville', x: 0.72, y: 0.74 },
   { name: 'Fort RSA', x: 0.80, y: 0.42 }, { name: 'Canape-City', x: 0.88, y: 0.68 },
   { name: 'Ploumstan', x: 0.95, y: 0.28 },
+  { name: 'Cappuccino-ma-Reine', x: 0.10, y: 0.50 },
+  { name: 'Le Ledger Perdu', x: 0.33, y: 0.16 },
+  { name: 'Pâtes-au-Poivre', x: 0.76, y: 0.18 },
 ];
 
 const PERSONA = {

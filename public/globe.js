@@ -8,7 +8,7 @@ window.Globe = (function () {
   // points representatifs (lat,lng)
   const POS = { russia: { lat: 57, lng: 65 }, ukraine: { lat: 49, lng: 31 } };
 
-  let renderer, scene, camera, globeGroup, markers = {}, anims = [], raf = 0, lastT = 0;
+  let renderer, scene, camera, globeGroup, soldierGroup, markers = {}, anims = [], raf = 0, lastT = 0, soldiersKey = '';
   let ok = false;
 
   function latLng(lat, lng, r) {
@@ -105,6 +105,7 @@ window.Globe = (function () {
         globeGroup.add(grp);
         markers[k] = { base, glow, dot, pulse: 0 };
       }
+      soldierGroup = new THREE.Group(); globeGroup.add(soldierGroup);
 
       // caméra fixe, centrée et zoomée sur la région des deux pays (pas de rotation)
       const center = latLng(53, 45, 1).normalize();
@@ -167,6 +168,34 @@ window.Globe = (function () {
     anims.push({ type: 'boom', ring, flash, t: 0, dur: 0.9 });
   }
 
+  function avatarSprite(initial, color) {
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const g = c.getContext('2d');
+    g.beginPath(); g.arc(32, 32, 29, 0, Math.PI * 2); g.fillStyle = '#' + new THREE.Color(color).getHexString(); g.fill();
+    g.lineWidth = 4; g.strokeStyle = '#0b1018'; g.stroke();
+    g.fillStyle = '#fff'; g.font = '700 34px Rajdhani, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(initial, 32, 36);
+    return new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthWrite: false, transparent: true }));
+  }
+
+  function setSoldiers(russia, ukraine) {
+    if (!ok || !soldierGroup) return;
+    const key = (russia || []).map((s) => s.name).join(',') + '|' + (ukraine || []).map((s) => s.name).join(',');
+    if (key === soldiersKey) return; soldiersKey = key;
+    while (soldierGroup.children.length) soldierGroup.remove(soldierGroup.children[0]);
+    const place = (list, side) => {
+      const m = POS[side];
+      (list || []).slice(0, 8).forEach((s, i) => {
+        const ang = (i / 8) * Math.PI * 2;
+        const p = latLng(m.lat + Math.cos(ang) * 9, m.lng + Math.sin(ang) * 12, R * 1.05);
+        const sp = avatarSprite((s.name[0] || '?').toUpperCase(), COL[side]);
+        sp.position.copy(p); sp.scale.set(0.22, 0.22, 1);
+        soldierGroup.add(sp);
+      });
+    };
+    place(russia, 'russia'); place(ukraine, 'ukraine');
+  }
+
   function loop() {
     raf = requestAnimationFrame(loop);
     const now = performance.now();
@@ -203,5 +232,5 @@ window.Globe = (function () {
     renderer.render(scene, camera);
   }
 
-  return { init, setControl, addBomb, get available() { return ok; } };
+  return { init, setControl, addBomb, setSoldiers, get available() { return ok; } };
 })();

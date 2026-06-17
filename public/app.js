@@ -8,7 +8,7 @@ const COL = { russia: '#e23b3b', ukraine: '#3b82f6' };
 
 const state = {
   data: null, fetchedAt: 0, control: 50, display: 50,
-  seenBombs: new Set(), bombsInit: false, gridBuilt: false,
+  seenBombs: new Set(), bombsInit: false, gridBuilt: false, campPrompted: false,
 };
 
 const $ = (s) => document.querySelector(s);
@@ -24,7 +24,7 @@ function buildCard(side, ch) {
   const el = $('#card-' + side);
   el.innerHTML = `
     <div class="card-top">
-      <div class="avatar">${ch.emoji}</div>
+      <div class="avatar"><img class="av-img" src="${side === 'russia' ? 'opior.png' : 'yaya.png'}" alt="" onerror="this.replaceWith(document.createTextNode('${ch.emoji}'))"></div>
       <div class="who"><div class="name"><span class="nm"></span></div><div class="faction"></div><div class="role"></div></div>
       <div class="livebadge"><span class="lbl">&hellip;</span></div>
     </div>
@@ -219,11 +219,9 @@ function openLogin() {
   if (!me) {
     body.innerHTML = `
       <h2 class="modal-h">Rejoindre la guerre</h2>
-      ${d && d.kickConfigured ? `<a class="kick-btn" href="/api/auth/kick">Se connecter avec Kick</a><div class="or">ou</div>` : `<p class="modal-note">Connexion Kick non configurée (mode local). Choisis un pseudo :</p>`}
-      <div class="login-row"><input id="pseudo" maxlength="20" placeholder="Ton pseudo" /><button class="hbtn primary" id="doLogin" type="button">Entrer</button></div>`;
-    const go = async () => { const n = body.querySelector('#pseudo').value.trim(); if (!n) return; await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: n }) }); await poll(); openLogin(); };
-    body.querySelector('#doLogin').onclick = go;
-    body.querySelector('#pseudo').addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+      ${d && d.kickConfigured
+        ? `<p class="modal-note">Connecte-toi avec ton compte Kick pour choisir ton camp et combattre.</p><a class="kick-btn" href="/api/auth/kick">Se connecter avec Kick</a>`
+        : `<p class="modal-note">Connexion Kick indisponible (serveur non configuré).</p>`}`;
   } else {
     body.innerHTML = `
       <h2 class="modal-h">Choisis ton camp, <b>${escapeHtml(me.name)}</b></h2>
@@ -334,7 +332,7 @@ function applyData(d) {
   const prev = state.data; state.data = d; state.fetchedAt = Date.now(); state.control = d.control;
   updateCard('russia', d.channels.russia); updateCard('ukraine', d.channels.ukraine);
   updateControl(d.control);
-  if (window.Globe && Globe.available) Globe.setControl(d.control);
+  if (window.Globe && Globe.available) { Globe.setControl(d.control); Globe.setSoldiers(d.army.russia.top, d.army.ukraine.top); }
   if (!cityNodes.length) buildCities(d.cities);
   renderPixels(d);
   renderArmy('russia', d.army.russia); renderArmy('ukraine', d.army.ukraine);
@@ -342,9 +340,16 @@ function applyData(d) {
   $('#linkRussia').href = d.channels.russia.url; $('#linkUkraine').href = d.channels.ukraine.url;
   renderLog(d.log); updateAssault(d); renderJournal(d); renderEnd(d.war, d.channels);
   if ($('#infoModal').classList.contains('show')) renderInfo(d);
-  for (const b of d.bombs) { if (!state.seenBombs.has(b.id)) { state.seenBombs.add(b.id); if (state.bombsInit) bombFx(b); } }
+
+  // à la 1re connexion sans camp : ouvre le choix du camp automatiquement
+  if (!d.me) state.campPrompted = false;
+  else if (!d.me.camp && !state.campPrompted) { state.campPrompted = true; openLogin(); }
+
+  // effets de bombe : uniquement pour une vraie bombe RÉCENTE (pas de rejeu quand il ne se passe rien)
+  for (const b of d.bombs) {
+    if (!state.seenBombs.has(b.id)) { state.seenBombs.add(b.id); if (state.bombsInit && Date.now() - b.t < 12000) bombFx(b); }
+  }
   state.bombsInit = true;
-  if (prev && d.log.length && prev.log.length && d.log[0].t !== prev.log[0].t && /tombe aux mains/.test(d.log[0].msg)) showToast(d.log[0].msg, d.log[0].side);
 }
 async function poll() { try { const r = await fetch('/api/state', { cache: 'no-store' }); if (r.ok) applyData(await r.json()); } catch {} }
 

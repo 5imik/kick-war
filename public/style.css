@@ -106,11 +106,18 @@ main{max-width:1080px;margin:0 auto;padding:clamp(14px,3vw,26px)}
 .fill-russia{background:linear-gradient(90deg,var(--russia),var(--russia-d));transition:width .8s cubic-bezier(.4,0,.2,1);margin-left:auto}
 .front-marker{position:absolute;top:-3px;bottom:-3px;width:2px;background:#fff;box-shadow:0 0 10px #fff;transition:left .8s cubic-bezier(.4,0,.2,1)}
 
-/* globe */
-.globewrap{margin-top:18px;border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--shadow);background:radial-gradient(circle at 50% 40%,#0e1c2b,#070b11)}
-#globe{width:100%;height:clamp(280px,42vw,420px)}
+/* scène : stream gauche · globe · stream droite */
+.stage{display:grid;grid-template-columns:1fr 1.55fr 1fr;gap:12px;align-items:stretch;margin-top:18px}
+.stage-stream{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--panel)}
+.stage-left{border-top:3px solid var(--russia)}
+.stage-right{border-top:3px solid var(--ukraine)}
+.stream-head{padding:8px 12px;font-weight:700;font-size:14px}
+.stream-frame{width:100%;aspect-ratio:16/9;border:0;background:#000}
+.stage-globe{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--shadow);background:radial-gradient(circle at 50% 40%,#0e1c2b,#070b11)}
+#globe{flex:1;width:100%;min-height:340px}
 #globe canvas{display:block}
 .globe-cap{text-align:center;color:var(--muted);font-size:11.5px;letter-spacing:1.5px;text-transform:uppercase;padding:8px}
+.av-img{width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block}
 
 /* map */
 .mapwrap{position:relative;margin-top:16px;border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}
@@ -256,5 +263,6 @@ main{max-width:1080px;margin:0 auto;padding:clamp(14px,3vw,26px)}
   .jp-cols{grid-template-columns:1fr;gap:10px}
   .armies{grid-template-columns:1fr}
   .chats{grid-template-columns:1fr}
+  .stage{grid-template-columns:1fr}
   .topright{flex-wrap:wrap;justify-content:flex-end;gap:6px}
 }
