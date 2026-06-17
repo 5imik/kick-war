@@ -222,7 +222,8 @@ main{max-width:1080px;margin:0 auto;padding:clamp(14px,3vw,26px)}
 .rkn{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
 .msgs{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
 
-.rage-cd{margin:4px 0 0;font-size:12px;color:var(--ukraine2);text-align:center;font-weight:600;min-height:0}
+.rage-cd{margin:4px 0 0;font-size:12px;color:var(--muted);text-align:center;font-weight:600;min-height:16px}
+.rage-cd.ready{color:#ffd23c;animation:ragepulse 1s infinite}
 
 /* chats embarques */
 .chats{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px}

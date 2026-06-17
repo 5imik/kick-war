@@ -9,6 +9,7 @@ const COL = { russia: '#e23b3b', ukraine: '#3b82f6' };
 const state = {
   data: null, fetchedAt: 0, control: 50, display: 50,
   seenBombs: new Set(), bombsInit: false, gridBuilt: false, campPrompted: false,
+  assaultWasOpen: false, cdReady: { russia: null, ukraine: null },
 };
 
 const $ = (s) => document.querySelector(s);
@@ -17,6 +18,32 @@ const fmt = (n) => nf.format(Math.round(n || 0));
 function fmtDur(sec) { sec = Math.max(0, Math.floor(sec)); const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60; if (h) return `${h}h ${String(m).padStart(2, '0')}m`; if (m) return `${m}m ${String(s).padStart(2, '0')}s`; return `${s}s`; }
 function fmtHours(h) { return h >= 1000 ? (h / 1000).toFixed(1) + 'k h' : (Math.round(h * 10) / 10).toFixed(1) + ' h'; }
 function fmtClock(t) { return new Date(t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }); }
+
+/* ----------------------- Sons (Web Audio, sans fichier) ----------------------- */
+const Sound = (() => {
+  let ctx, enabled = localStorage.getItem('sw_sound') !== '0';
+  const init = () => { if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch {} } if (ctx && ctx.state === 'suspended') ctx.resume(); return ctx; };
+  const env = (t0, dur, peak) => { const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(peak, t0 + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); return g; };
+  function siren() { // alerte "tu peux bombarder"
+    if (!enabled || !init()) return;
+    const t = ctx.currentTime, o = ctx.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(620, t); o.frequency.linearRampToValueAtTime(1150, t + 0.22); o.frequency.linearRampToValueAtTime(720, t + 0.45);
+    const g = env(t, 0.5, 0.16); o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + 0.52);
+  }
+  function boom() { // explosion
+    if (!enabled || !init()) return;
+    const t = ctx.currentTime;
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.5, ctx.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2);
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(950, t); lp.frequency.exponentialRampToValueAtTime(120, t + 0.4);
+    const g = env(t, 0.5, 0.5); src.connect(lp); lp.connect(g); g.connect(ctx.destination); src.start(t);
+    const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(130, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.4);
+    const g2 = env(t, 0.45, 0.5); o.connect(g2); g2.connect(ctx.destination); o.start(t); o.stop(t + 0.46);
+  }
+  function setEnabled(v) { enabled = v; localStorage.setItem('sw_sound', v ? '1' : '0'); }
+  return { siren, boom, init, setEnabled, get enabled() { return enabled; } };
+})();
 
 /* ----------------------- Cartes combattants ----------------------- */
 const cardRefs = {};
@@ -72,7 +99,14 @@ function tickUptimes() {
     if (ch.live) r.uptime.textContent = fmtDur(ch.uptimeSec + (Date.now() - state.fetchedAt) / 1000);
     else r.uptime.innerHTML = '<small>&ndash;</small>';
     const cd = Math.max(0, ch.cooldownMs - (Date.now() - state.fetchedAt));
-    if (r.rcd) r.rcd.textContent = cd > 0 ? '🕓 Prochaine bombe dans ' + fmtDur(cd / 1000) : '';
+    const ready = cd <= 0 && ch.live && state.data.war.status === 'active';
+    if (r.rcd) {
+      if (cd > 0) { r.rcd.textContent = '🕓 Rechargement : ' + fmtDur(cd / 1000); r.rcd.classList.remove('ready'); }
+      else if (ready) { r.rcd.innerHTML = `⚠️ BOMBE PRÊTE — spammez <b>${ch.command}</b> !`; r.rcd.classList.add('ready'); }
+      else { r.rcd.textContent = ''; r.rcd.classList.remove('ready'); }
+    }
+    if (ready && state.cdReady[side] === false) Sound.siren(); // vient de redevenir disponible
+    state.cdReady[side] = ready;
   }
   if (state.data.war) {
     const rem = Math.max(0, state.data.war.remainingMs - (Date.now() - state.fetchedAt));
@@ -277,6 +311,7 @@ function renderLog(log) {
 
 /* ----------------------- Bombe FX + toast ----------------------- */
 function bombFx(b) {
+  Sound.boom();
   spawnExplosion(b.x, b.y, b.mega);
   if (window.Globe && Globe.available) Globe.addBomb(b.from);
   const f = $('#flash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
@@ -287,8 +322,11 @@ function showToast(msg, side) { const t = $('#captureToast'); t.textContent = ms
 
 /* ----------------------- Assaut + fin ----------------------- */
 function updateAssault(d) {
-  const b = $('#assaultBanner'); b.classList.toggle('show', !!d.assault.open);
-  if (d.assault.open) b.innerHTML = `⚠️ <b>ASSAUT GÉNÉRAL</b> — spammez <b>${d.commands.russia}</b> (Goule) ou <b>${d.commands.ukraine}</b> (Yaya) dans le chat ! Bombes ×2 (${fmtDur(d.assault.closesInMs / 1000)})`;
+  const b = $('#assaultBanner'), open = !!d.assault.open;
+  b.classList.toggle('show', open);
+  if (open) b.innerHTML = `⚠️ <b>ASSAUT GÉNÉRAL</b> — spammez <b>${d.commands.russia}</b> (Goule) ou <b>${d.commands.ukraine}</b> (Yaya) dans le chat ! Bombes ×2 (${fmtDur(d.assault.closesInMs / 1000)})`;
+  if (open && !state.assaultWasOpen) Sound.siren();
+  state.assaultWasOpen = open;
 }
 function renderEnd(war, channels) {
   const o = $('#endOverlay');
@@ -358,6 +396,13 @@ buildMap();
 if (window.Globe) Globe.init($('#globe'));
 requestAnimationFrame(render);
 $('#infoBtn').onclick = () => { if (state.data) renderInfo(state.data); };
+// son : bouton mute + déverrouillage au premier clic (politique navigateur)
+const soundBtn = $('#soundBtn');
+if (soundBtn) {
+  soundBtn.textContent = Sound.enabled ? '🔊' : '🔇';
+  soundBtn.onclick = () => { Sound.setEnabled(!Sound.enabled); soundBtn.textContent = Sound.enabled ? '🔊' : '🔇'; if (Sound.enabled) Sound.siren(); };
+}
+['pointerdown', 'keydown'].forEach((e) => window.addEventListener(e, () => Sound.init(), { once: true }));
 document.querySelectorAll('[data-close]').forEach((b) => b.onclick = closeModal);
 document.querySelectorAll('.modal').forEach((m) => m.addEventListener('click', (e) => { if (e.target === m) closeModal(); }));
 poll();
