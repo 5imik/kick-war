@@ -29,6 +29,11 @@ const POLL_MS = 2000;
 const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${PORT}`;
 const KICK_CLIENT_ID = process.env.KICK_CLIENT_ID || '';
 const KICK_CLIENT_SECRET = process.env.KICK_CLIENT_SECRET || '';
+// Identifiants Kick présents -> mode LIVE (vraies stats + vrai chat, AUCUNE simulation).
+const CONFIGURED = !!(KICK_CLIENT_ID && KICK_CLIENT_SECRET);
+const SIMULATE = !CONFIGURED;
+// chatroom IDs pour lire le chat (l'API officielle ne les fournit pas) — à définir en env.
+const CHATROOM = { russia: process.env.KICK_CHATROOM_RUSSIA || '', ukraine: process.env.KICK_CHATROOM_UKRAINE || '' };
 
 // --- Reglages -----------------------------------------------------------
 const RATE_PER_MIN = Number(process.env.WAR_RATE) || (process.env.WAR_DEMO === '1' || process.argv[3] === 'demo' ? 0.22 : 0.05);
@@ -75,6 +80,7 @@ function dayKeyOf(t) { const d = new Date(t); return `${d.getFullYear()}-${d.get
 function defaultState() {
   const now = Date.now();
   const mkArmy = (side) => {
+    if (CONFIGURED) return {}; // en live, l'armée se remplit avec les vrais chatters
     const o = {};
     for (const n of CHATTERS[side]) o[n] = { msgs: Math.floor(Math.random() * 30), w: 0.3 + Math.random() * Math.random() * 3, viewer: false };
     return o;
@@ -82,7 +88,10 @@ function defaultState() {
   return {
     russiaShare: 50, lastUpdate: now,
     war: { start: now, durationDays: WAR_DURATION_DAYS, status: 'active', winner: null },
-    channels: {
+    channels: CONFIGURED ? {
+      russia: { live: false, viewers: 0, peak: 0, followers: 0, hours: 0, since: null, title: '', source: 'live' },
+      ukraine: { live: false, viewers: 0, peak: 0, followers: 0, hours: 0, since: null, title: '', source: 'live' },
+    } : {
       russia: { live: true, viewers: 700, peak: 1500, followers: 12450, hours: 128.5, since: now, title: '', source: 'sim' },
       ukraine: { live: true, viewers: 1300, peak: 4200, followers: 88990, hours: 47.2, since: now, title: '', source: 'sim' },
     },
@@ -200,25 +209,108 @@ function detectCaptures(p, n) { if (p === n) return; for (const c of CITIES) { c
 function detectMilestones(p, n) { for (const th of [10, 25, 50, 75, 90]) { if (p < th && n >= th) pushLog('russia', `Opior franchit la barre des ${th}% !`); if (p >= th && n < th) pushLog('ukraine', `Yaya repousse Opior sous les ${th}%.`); } }
 function endWar() { state.war.status = 'ended'; state.war.winner = state.russiaShare >= 50 ? 'russia' : 'ukraine'; const w = CHANNELS[state.war.winner]; pushLog('system', `🏳️ FIN DE LA GUERRE. Victoire de ${w.name} (${w.army}).`); }
 
+// ---------------------------------------------------------------------------
+// Mode LIVE : API officielle Kick (stats) + socket de chat public (Pusher)
+// ---------------------------------------------------------------------------
+let appToken = null, appTokenExp = 0, lastChannelFetch = 0, liveErrLogged = false, liveLoggedRaw = false;
+const chatWS = {};
+
+async function getAppToken() {
+  if (appToken && Date.now() < appTokenExp) return appToken;
+  const r = await fetch('https://id.kick.com/oauth/token', {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'client_credentials', client_id: KICK_CLIENT_ID, client_secret: KICK_CLIENT_SECRET }),
+  });
+  const j = await r.json();
+  if (!j.access_token) throw new Error('token app KO: ' + JSON.stringify(j).slice(0, 150));
+  appToken = j.access_token; appTokenExp = Date.now() + (j.expires_in || 3600) * 1000 - 60000;
+  return appToken;
+}
+
+async function fetchChannelsLive() {
+  const tok = await getAppToken();
+  const r = await fetch(`https://api.kick.com/public/v1/channels?slug=${CHANNELS.russia.slug}&slug=${CHANNELS.ukraine.slug}`, { headers: { Authorization: 'Bearer ' + tok } });
+  const j = await r.json();
+  if (!liveLoggedRaw) { console.log('[live] channels brut:', JSON.stringify(j).slice(0, 500)); liveLoggedRaw = true; }
+  const arr = j.data || j.channels || [];
+  for (const c of arr) {
+    const slug = String(c.slug || c.broadcaster_user_slug || (c.broadcaster && c.broadcaster.slug) || '').toLowerCase();
+    const key = slug === CHANNELS.russia.slug ? 'russia' : slug === CHANNELS.ukraine.slug ? 'ukraine' : null;
+    if (!key) continue;
+    const ch = state.channels[key], stream = c.stream || c.livestream || {};
+    ch.live = !!(stream.is_live ?? c.is_live ?? (stream.viewer_count != null));
+    ch.viewers = stream.viewer_count ?? stream.viewers ?? c.viewer_count ?? 0;
+    ch.followers = c.active_subscribers_count ?? c.followers_count ?? c.followers ?? ch.followers; // abonnés
+    ch.title = stream.session_title || c.stream_title || stream.title || '';
+    if (ch.live && stream.start_time) { const t = Date.parse(stream.start_time); if (t > 0) ch._startTime = t; }
+    ch.source = 'live';
+    const cid = CHATROOM[key] || ch._chatroomId || await resolveChatroom(key);
+    if (cid && !chatWS[key]) connectChat(key, cid);
+  }
+}
+
+// l'API officielle ne renvoie pas le chatroom_id : on tente l'endpoint public (souvent
+// bloqué par Cloudflare côté serveur) ; sinon il faut le fournir via KICK_CHATROOM_*.
+async function resolveChatroom(side) {
+  if (CHATROOM[side]) return CHATROOM[side];
+  if (state.channels[side]._chatroomId) return state.channels[side]._chatroomId;
+  try {
+    const r = await fetch('https://kick.com/api/v2/channels/' + CHANNELS[side].slug, { headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' } });
+    if (r.ok) { const j = await r.json(); const id = j.chatroom && j.chatroom.id; if (id) { state.channels[side]._chatroomId = id; return id; } }
+  } catch {}
+  return null;
+}
+
+function connectChat(side, chatroomId) {
+  if (typeof WebSocket === 'undefined') { console.warn('[chat] WebSocket indisponible (Node < 22) — chat live désactivé'); return; }
+  try {
+    const ws = new WebSocket('wss://ws-us2.pusher.com/app/32cbd69e4b950bf97679?protocol=7&client=js&version=8.4.0&flash=false');
+    chatWS[side] = ws;
+    ws.addEventListener('open', () => ws.send(JSON.stringify({ event: 'pusher:subscribe', data: { channel: `chatrooms.${chatroomId}.v2` } })));
+    ws.addEventListener('message', (ev) => {
+      try {
+        const m = JSON.parse(ev.data);
+        if (m.event && m.event.indexOf('ChatMessage') >= 0) {
+          const d = typeof m.data === 'string' ? JSON.parse(m.data) : m.data;
+          const user = (d.sender && (d.sender.username || d.sender.slug)) || 'anon';
+          onChatMessage(side, user, d.content || '');
+        }
+      } catch {}
+    });
+    ws.addEventListener('close', () => { chatWS[side] = null; setTimeout(() => connectChat(side, chatroomId), 5000); });
+    ws.addEventListener('error', () => {});
+    console.log('[chat] connecté:', side, 'chatroom', chatroomId);
+  } catch (e) { console.warn('[chat] échec', side, e.message); }
+}
+
 async function tick() {
   const now = Date.now();
   const dtSec = clamp((now - state.lastUpdate) / 1000, 0, 60), dtMin = dtSec / 60;
   if (state.war.status === 'active' && now - state.war.start >= state.war.durationDays * 86400000) endWar();
   const active = state.war.status === 'active';
 
+  const prevLive = { russia: state.channels.russia.live, ukraine: state.channels.ukraine.live };
+  if (CONFIGURED && now - lastChannelFetch > 20000) {
+    lastChannelFetch = now;
+    try { await fetchChannelsLive(); } catch (e) { if (!liveErrLogged) { console.error('[live] API Kick KO:', e.message); liveErrLogged = true; } }
+  }
+
   for (const key of ['russia', 'ukraine']) {
-    const ch = state.channels[key], wasLive = ch.live, sim = simulateChannel(key, dtMin);
-    ch.live = sim.live;
-    ch.viewers = Math.max(0, Math.round(ch.viewers + (sim.target - ch.viewers) * 0.25 + (ch.live ? rand(-30, 30) : 0)));
-    ch.followers += ch.live ? rand(0, 1.6) : rand(0, 0.25); ch.source = 'sim';
-    if (ch.live && !wasLive) { ch.since = now; pushLog(key, key === 'russia' ? 'Opior lance son stream. Les Ténèbres avancent !' : 'Yaya entre en résistance. Le front se renforce.'); }
+    const ch = state.channels[key], wasLive = prevLive[key];
+    if (SIMULATE) {
+      const sim = simulateChannel(key, dtMin);
+      ch.live = sim.live;
+      ch.viewers = Math.max(0, Math.round(ch.viewers + (sim.target - ch.viewers) * 0.25 + (ch.live ? rand(-30, 30) : 0)));
+      ch.followers += ch.live ? rand(0, 1.6) : rand(0, 0.25); ch.source = 'sim';
+    }
+    if (ch.live && !wasLive) { ch.since = ch._startTime || now; pushLog(key, key === 'russia' ? 'Opior lance son stream. Les Ténèbres avancent !' : 'Yaya entre en résistance. Le front se renforce.'); }
     else if (!ch.live && wasLive) { ch.since = null; pushLog(key, key === 'russia' ? "Opior s'est endormi sur son canapé." : 'Yaya part en yacht.'); }
     if (ch.live) { ch.hours += dtMin / 60; if (ch.viewers > ch.peak) ch.peak = ch.viewers; }
   }
 
   if (active) {
     updateAssault(now);
-    simChat(now, dtSec);
+    if (SIMULATE) simChat(now, dtSec);
     for (const key of ['russia', 'ukraine']) { const c = pruneRage(key, now); if (c >= BOMB_THRESHOLD && now >= state.rage[key].cooldownUntil) dropBomb(key, now); }
     const prev = state.russiaShare;
     state.russiaShare = clamp(prev + RATE_PER_MIN * (push(state.channels.russia) - push(state.channels.ukraine)) * dtMin, 3, 97);
@@ -305,6 +397,16 @@ const server = http.createServer(async (req, res) => {
   const session = getSession(req);
 
   if (p === '/api/state') return json(res, publicState(session));
+
+  // diagnostic live (à ouvrir après déploiement pour vérifier la connexion Kick)
+  if (p === '/api/debug/kick') {
+    if (!CONFIGURED) return json(res, { configured: false, note: 'KICK_CLIENT_ID / KICK_CLIENT_SECRET non définis → mode simulation' });
+    try {
+      const tok = await getAppToken();
+      const r = await fetch(`https://api.kick.com/public/v1/channels?slug=${CHANNELS.russia.slug}&slug=${CHANNELS.ukraine.slug}`, { headers: { Authorization: 'Bearer ' + tok } });
+      return json(res, { configured: true, tokenOK: !!tok, wsSupported: typeof WebSocket !== 'undefined', chatConnected: { russia: !!chatWS.russia, ukraine: !!chatWS.ukraine }, channels: await r.json() });
+    } catch (e) { return json(res, { configured: true, error: e.message }); }
+  }
 
   if (p === '/api/login' && m === 'POST') {
     const body = await readBody(req); const name = cleanName(body.name);

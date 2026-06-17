@@ -34,7 +34,7 @@ function buildCard(side, ch) {
       <div class="stat"><div class="k">En direct depuis</div><div class="v uptime">&ndash;</div></div>
       <div class="stat"><div class="k">Heures streamées</div><div class="v hours">&ndash;</div></div>
       <div class="stat"><div class="k">Pic spectateurs</div><div class="v peak">&ndash;</div></div>
-      <div class="stat"><div class="k">Followers</div><div class="v followers">&ndash;</div></div>
+      <div class="stat"><div class="k">Abonnés</div><div class="v followers">&ndash;</div></div>
       <div class="stat"><div class="k">Bombes larguées</div><div class="v bombs">&ndash;</div></div>
     </div>
     <div class="rage">
