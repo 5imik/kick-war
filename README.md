@@ -12,8 +12,9 @@ Carte de guerre **en temps réel** (parodie) entre deux streamers Kick :
 - **Territoire** : un streamer **en ligne** avance, **hors ligne** recule. Plus de spectateurs = poussée plus forte.
 - **Globe 3D** (three.js) figé et zoomé sur les deux pays, avec arcs de missiles + explosions.
 - **Carte tactique** SVG : front mouvant, villes qui changent de camp, cratères de bombes.
-- **Bombes via le chat uniquement** : spam d'une commande (`GOUGOULE` / `SLAVA`). **60 / minute = 1 bombe** sur l'ennemi.
+- **Bombes via le chat uniquement** : spam d'une commande (`GOUGOULE` / `SLAVA`). **30 messages = 1 bombe**, **max 1 bombe / 30 min** par camp.
 - **Assaut général** (~2×/jour) : bombes **×2 dégâts** (la bannière indique quoi spammer).
+- **Connexion Kick (OAuth 2.1 + PKCE)** + choix du camp ; **les 2 chats Kick** affichés sur le site.
 - **Armées** : chaque pseudo qui parle dans un chat monte en grade (Soldat → Général).
 - **Connexion** (Kick OAuth en prod, pseudo en local) + **choix du camp**.
 - **Pixel war** : chaque heure, un membre connecté peut frapper une case du **territoire ennemi**.

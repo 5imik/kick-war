@@ -215,6 +215,17 @@ main{max-width:1080px;margin:0 auto;padding:clamp(14px,3vw,26px)}
 .rkn{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
 .msgs{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
 
+.rage-cd{margin:4px 0 0;font-size:12px;color:var(--ukraine2);text-align:center;font-weight:600;min-height:0}
+
+/* chats embarques */
+.chats{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px}
+.chat-col{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+.chat-russia{border-top:3px solid var(--russia)}.chat-ukraine{border-top:3px solid var(--ukraine)}
+.chat-head{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;font-weight:700;font-size:14px}
+.chat-head a{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:1px;text-decoration:none;border-bottom:1px dotted var(--muted)}
+.chat-head a:hover{color:var(--ukraine2)}
+.chat-frame{width:100%;height:420px;border:0;background:#0c1119}
+
 /* modales */
 .modal{position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(6,8,12,.8);backdrop-filter:blur(4px)}
 .modal.show{display:flex;animation:fadein .25s ease}
@@ -244,5 +255,6 @@ main{max-width:1080px;margin:0 auto;padding:clamp(14px,3vw,26px)}
   .vs{order:0;min-height:30px}.vs span{width:42px;height:42px;font-size:16px}
   .jp-cols{grid-template-columns:1fr;gap:10px}
   .armies{grid-template-columns:1fr}
+  .chats{grid-template-columns:1fr}
   .topright{flex-wrap:wrap;justify-content:flex-end;gap:6px}
 }

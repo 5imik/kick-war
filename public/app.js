@@ -40,7 +40,8 @@ function buildCard(side, ch) {
     <div class="rage">
       <div class="rage-top"><span class="rage-k">JAUGE DE RAGE</span><span class="rage-n"><b class="rcount">0</b> / ${ch.rageThreshold} /min</span></div>
       <div class="rage-bar"><div class="rage-fill"></div></div>
-      <p class="rage-hint">💬 Spammez <b>${ch.command}</b> dans le chat Kick pour larguer une bombe.</p>
+      <p class="rage-hint">💬 Spammez <b>${ch.command}</b> dans le chat (×${ch.rageThreshold}) pour larguer une bombe.</p>
+      <p class="rage-cd"></p>
     </div>`;
   el.querySelector('.nm').textContent = ch.title;
   el.querySelector('.faction').textContent = ch.flag + ' ' + ch.army;
@@ -49,7 +50,7 @@ function buildCard(side, ch) {
     badge: el.querySelector('.livebadge'), lbl: el.querySelector('.lbl'), title: el.querySelector('.title-line'),
     viewers: el.querySelector('.viewers'), uptime: el.querySelector('.uptime'), hours: el.querySelector('.hours'),
     peak: el.querySelector('.peak'), followers: el.querySelector('.followers'), bombs: el.querySelector('.bombs'),
-    rcount: el.querySelector('.rcount'), rfill: el.querySelector('.rage-fill'),
+    rcount: el.querySelector('.rcount'), rfill: el.querySelector('.rage-fill'), rcd: el.querySelector('.rage-cd'),
   };
 }
 function updateCard(side, ch) {
@@ -70,6 +71,8 @@ function tickUptimes() {
     const ch = state.data.channels[side], r = cardRefs[side]; if (!r) continue;
     if (ch.live) r.uptime.textContent = fmtDur(ch.uptimeSec + (Date.now() - state.fetchedAt) / 1000);
     else r.uptime.innerHTML = '<small>&ndash;</small>';
+    const cd = Math.max(0, ch.cooldownMs - (Date.now() - state.fetchedAt));
+    if (r.rcd) r.rcd.textContent = cd > 0 ? '🕓 Prochaine bombe dans ' + fmtDur(cd / 1000) : '';
   }
   if (state.data.war) {
     const rem = Math.max(0, state.data.war.remainingMs - (Date.now() - state.fetchedAt));
@@ -255,7 +258,7 @@ function renderInfo(d) {
     <h2 class="modal-h">ℹ️ Comment ça marche</h2>
     <ul class="info-list">
       <li><b>Territoire</b> : un streamer <b>en ligne</b> avance, <b>hors ligne</b> recule. Plus de spectateurs = poussée plus forte.</li>
-      <li><b>Bombes</b> : elles se déclenchent <b>uniquement via le chat</b>. ${d.channels.russia.command} (camp Goule) / ${d.channels.ukraine.command} (camp Yaya). <b>60 / minute = 1 bombe</b> sur l'ennemi.</li>
+      <li><b>Bombes</b> : <b>uniquement via le chat</b>. ${d.channels.russia.command} (camp Goule) / ${d.channels.ukraine.command} (camp Yaya). <b>${d.channels.russia.rageThreshold} messages = 1 bombe</b>, et <b>max 1 bombe / 30 min</b> par camp.</li>
       <li><b>Assaut général</b> (~2×/jour) : les bombes font <b>×2 dégâts</b>.</li>
       <li><b>Armée</b> : plus tu écris dans un chat, plus tu montes en grade (Soldat → Général).</li>
       <li><b>Pixel war</b> : connecte-toi, choisis ton camp, puis frappe une case du territoire ennemi (1×/heure).</li>

@@ -31,12 +31,12 @@ const KICK_CLIENT_ID = process.env.KICK_CLIENT_ID || '';
 const KICK_CLIENT_SECRET = process.env.KICK_CLIENT_SECRET || '';
 
 // --- Reglages -----------------------------------------------------------
-const RATE_PER_MIN = Number(process.env.WAR_RATE) || (process.env.WAR_DEMO === '1' || process.argv[3] === 'demo' ? 0.4 : 0.08);
+const RATE_PER_MIN = Number(process.env.WAR_RATE) || (process.env.WAR_DEMO === '1' || process.argv[3] === 'demo' ? 0.22 : 0.05);
 const WAR_DURATION_DAYS = Number(process.env.WAR_DAYS) || 7;
 const RAGE_WINDOW_MS = 60000;
-const BOMB_THRESHOLD = 60;
-const BOMB_COOLDOWN_MS = 30000;
-const BOMB_DAMAGE = 3;
+const BOMB_THRESHOLD = 30;                                   // 30 spams = 1 bombe
+const BOMB_COOLDOWN_MS = DEMO ? 60000 : 30 * 60 * 1000;      // 1 bombe / 30 min par camp
+const BOMB_DAMAGE = 2;
 const ASSAULT_LIMIT = 2;
 const ASSAULT_INTERVAL_MS = DEMO ? 150000 : 8 * 3600 * 1000;
 const ASSAULT_WINDOW_MS = DEMO ? 60000 : 10 * 60 * 1000;
@@ -116,6 +116,8 @@ function loadState() {
 
 let state = loadState();
 const sessions = {}; // token -> { name, camp, lastPixel, kick }
+const pkce = new Map(); // state OAuth -> { verifier, createdAt }
+function b64url(buf) { return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
 
 function saveState() { try { fs.writeFileSync(STATE_FILE, JSON.stringify(state)); } catch {} }
 
@@ -323,21 +325,42 @@ const server = http.createServer(async (req, res) => {
   }
   if (p === '/api/pixel' && m === 'POST') { const body = await readBody(req); return json(res, placePixel(session, body.i)); }
 
-  // Kick OAuth (prod)
+  // Kick OAuth 2.1 (PKCE)
   if (p === '/api/auth/kick') {
-    if (!KICK_CLIENT_ID) return json(res, { error: 'Kick non configuré (voir README / guide).' }, 501);
-    const stateTok = crypto.randomUUID();
+    if (!KICK_CLIENT_ID) return json(res, { error: 'Kick non configuré (voir README).' }, 501);
+    const verifier = b64url(crypto.randomBytes(48));
+    const challenge = b64url(crypto.createHash('sha256').update(verifier).digest());
+    const st = crypto.randomUUID();
+    pkce.set(st, { verifier, createdAt: Date.now() });
+    for (const [k, v] of pkce) if (Date.now() - v.createdAt > 600000) pkce.delete(k);
     const a = new URL('https://id.kick.com/oauth/authorize');
     a.searchParams.set('client_id', KICK_CLIENT_ID);
     a.searchParams.set('redirect_uri', PUBLIC_URL + '/api/auth/kick/callback');
     a.searchParams.set('response_type', 'code');
     a.searchParams.set('scope', 'user:read');
-    a.searchParams.set('state', stateTok);
+    a.searchParams.set('state', st);
+    a.searchParams.set('code_challenge', challenge);
+    a.searchParams.set('code_challenge_method', 'S256');
     return res.writeHead(302, { Location: a.toString() }).end();
   }
   if (p === '/api/auth/kick/callback') {
-    // NB : a finaliser selon la doc Kick (echange code -> token -> /users). Voir guide.
-    return res.writeHead(302, { Location: '/' }).end();
+    const code = url.searchParams.get('code'), st = url.searchParams.get('state'), entry = st && pkce.get(st);
+    if (!code || !entry) return res.writeHead(302, { Location: '/?login=err' }).end();
+    pkce.delete(st);
+    try {
+      const tokRes = await fetch('https://id.kick.com/oauth/token', {
+        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ grant_type: 'authorization_code', client_id: KICK_CLIENT_ID, client_secret: KICK_CLIENT_SECRET, redirect_uri: PUBLIC_URL + '/api/auth/kick/callback', code_verifier: entry.verifier, code }),
+      });
+      const tok = await tokRes.json();
+      if (!tok.access_token) throw new Error('pas de token: ' + JSON.stringify(tok).slice(0, 120));
+      const profRes = await fetch('https://api.kick.com/public/v1/users', { headers: { Authorization: 'Bearer ' + tok.access_token } });
+      const prof = await profRes.json();
+      const u = (prof.data && prof.data[0]) || {};
+      const name = cleanName(u.name || u.username || u.slug || ('kick_' + (u.user_id || u.id || ''))) || 'Soldat';
+      const token = crypto.randomUUID(); sessions[token] = { name, camp: null, lastPixel: 0, kick: true };
+      return res.writeHead(302, { Location: '/', 'Set-Cookie': `sw=${token}; Path=/; Max-Age=604800; HttpOnly; SameSite=Lax` }).end();
+    } catch (e) { console.error('OAuth Kick:', e.message); return res.writeHead(302, { Location: '/?login=err' }).end(); }
   }
 
   serveStatic(req, res);
