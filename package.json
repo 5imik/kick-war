@@ -1,0 +1,13 @@
+{
+  "name": "opior-vs-yaya-war",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Carte de guerre en temps reel (parodie) entre les streamers Opior (Russie) et Yaya (Ukraine) sur Kick.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GOUGOULE &#9876; YAYA &mdash; La Guerre du Stream</title>
+  <meta name="description" content="Carte de guerre en temps reel (parodie) : Général Gougoule (Opior) vs Yaya (Résistance) sur Kick." />
+  <link rel="icon" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'&gt;&lt;text y='.9em' font-size='90'&gt;&#9876;&lt;/text&gt;&lt;/svg&gt;" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Special+Elite&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="scanlines" aria-hidden="true"></div>
+  <div id="flash" class="flash" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">&#9876;</span>
+      <div class="brand-text">
+        <h1>GOUGOULE <em>vs</em> YAYA</h1>
+        <p>LIVE WAR MAP &middot; La Guerre du Stream</p>
+      </div>
+    </div>
+    <div class="topright">
+      <div id="countdown" class="countdown" title="Temps restant avant la fin de la guerre">
+        <span class="cd-label">FIN DANS</span><span id="cdValue" class="cd-value">&ndash;</span>
+      </div>
+      <button id="infoBtn" class="hbtn" type="button">Infos / Traité</button>
+      <div id="authArea" class="auth-area"></div>
+    </div>
+  </header>
+
+  <div id="assaultBanner" class="assault-banner"></div>
+
+  <main>
+    <section class="combatants">
+      <article class="card card-russia" id="card-russia"></article>
+      <div class="vs" aria-hidden="true"><span>VS</span></div>
+      <article class="card card-ukraine" id="card-ukraine"></article>
+    </section>
+
+    <section class="control">
+      <div class="control-head">
+        <span class="ctl-label ctl-ukraine">Yaya <b id="pctUkraine">50%</b></span>
+        <span class="ctl-mid">CONTRÔLE DU TERRITOIRE</span>
+        <span class="ctl-label ctl-russia"><b id="pctRussia">50%</b> Opior</span>
+      </div>
+      <div class="control-bar">
+        <div class="fill-ukraine" id="fillUkraine"></div>
+        <div class="fill-russia" id="fillRussia"></div>
+        <div class="front-marker" id="frontMarker"></div>
+      </div>
+    </section>
+
+    <section class="globewrap">
+      <div id="globe"></div>
+      <div class="globe-cap">Vue stratégique &middot; les bombes s'abattent sur le territoire ennemi</div>
+    </section>
+
+    <section class="mapwrap">
+      <div class="map-head">FRONT TACTIQUE</div>
+      <div id="map"></div>
+      <div id="captureToast" class="capture-toast"></div>
+    </section>
+
+    <!-- Pixel war -->
+    <section class="pixelwrap">
+      <div class="px-head"><span>⚔️ PIXEL WAR</span><span id="pxStatus" class="px-status"></span></div>
+      <div id="pixelGrid" class="pixel-grid"></div>
+      <p class="px-hint">Connecte-toi, choisis ton camp, puis frappe une case du <b>territoire ennemi</b>. Une frappe par heure et par soldat.</p>
+    </section>
+
+    <!-- Armees -->
+    <section class="armies">
+      <div class="army army-russia">
+        <h3>👹 Armée de la Goule <span class="army-count" id="countRussia"></span></h3>
+        <ol id="armyRussia" class="army-list"></ol>
+      </div>
+      <div class="army army-ukraine">
+        <h3>🎖️ Armée de Yaya <span class="army-count" id="countUkraine"></span></h3>
+        <ol id="armyUkraine" class="army-list"></ol>
+      </div>
+    </section>
+
+    <section class="warlog">
+      <h2><span class="dot"></span> Dépêches du front</h2>
+      <ul id="log" class="log"></ul>
+    </section>
+
+    <section class="journal" id="journal"></section>
+  </main>
+
+  <footer class="footer">
+    <p class="disclaimer">
+      &#9888;&#65039; <b>Fiction / parodie.</b> Blague entre deux streamers Kick, <b>aucun lien</b> avec
+      le conflit réel Russie&ndash;Ukraine, aucune prise de position.
+    </p>
+    <p class="credits">
+      <a id="linkRussia" href="https://kick.com/theblackwall" target="_blank" rel="noopener">Opior / Gougoule</a>
+      &middot;
+      <a id="linkUkraine" href="https://kick.com/yayaaakl" target="_blank" rel="noopener">Yaya</a>
+    </p>
+  </footer>
+
+  <div class="ticker"><div id="tickerTrack" class="ticker-track"></div></div>
+
+  <!-- Ecran de fin -->
+  <div id="endOverlay" class="end-overlay"><div class="treaty" id="treaty"></div></div>
+
+  <!-- Modale infos / traite -->
+  <div id="infoModal" class="modal">
+    <div class="modal-card"><button class="modal-close" data-close type="button">&times;</button><div id="infoContent"></div></div>
+  </div>
+  <!-- Modale connexion -->
+  <div id="loginModal" class="modal">
+    <div class="modal-card"><button class="modal-close" data-close type="button">&times;</button><div id="loginBody"></div></div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="globe.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

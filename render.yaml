@@ -1,0 +1,19 @@
+# Blueprint Render — déploie automatiquement ce projet en service web Node.
+# Render fournit la variable PORT ; le serveur la lit déjà.
+services:
+  - type: web
+    name: kick-war
+    runtime: node
+    plan: free
+    buildCommand: ""
+    startCommand: node server.js
+    autoDeploy: true
+    envVars:
+      - key: WAR_DEMO
+        value: "0"            # mets "1" pour des assauts accélérés (démo)
+      - key: PUBLIC_URL
+        sync: false           # https://kick-war.onrender.com (à renseigner après le 1er deploy)
+      - key: KICK_CLIENT_ID
+        sync: false
+      - key: KICK_CLIENT_SECRET
+        sync: false
