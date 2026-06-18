@@ -36,7 +36,7 @@ const SIMULATE = !CONFIGURED;
 // chatroom IDs Kick (publics, stables) — défauts intégrés, surchargeables par env
 const CHATROOM = {
   russia: process.env.KICK_CHATROOM_RUSSIA || '64463412',   // theblackwall (Opior)
-  ukraine: process.env.KICK_CHATROOM_UKRAINE || '',         // yayaaakl (à compléter)
+  ukraine: process.env.KICK_CHATROOM_UKRAINE || '41997470', // yayaaakl (Yaya)
 };
 // persistance durable (survit aux redéploiements Render) : Upstash Redis REST
 const UPSTASH_URL = (process.env.UPSTASH_REDIS_REST_URL || '').replace(/\/$/, '');
