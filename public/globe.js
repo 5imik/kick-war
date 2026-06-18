@@ -296,5 +296,7 @@ window.Globe = (function () {
     renderer.render(scene, camera);
   }
 
-  return { init, setControl, addBomb, setSoldiers, setChiefs, get available() { return ok; } };
+  function setSoldiersVisible(v) { if (soldierGroup) soldierGroup.visible = v; }
+
+  return { init, setControl, addBomb, setSoldiers, setChiefs, setSoldiersVisible, get available() { return ok; } };
 })();

@@ -13,6 +13,7 @@ const state = {
 };
 
 let logSeen = new Set(), logInit = false, logUnread = 0, logPanelOpen = false;
+let soldiersVisible = localStorage.getItem('sw_soldiers') !== '0';
 
 const $ = (s) => document.querySelector(s);
 const nf = new Intl.NumberFormat('fr-FR');
@@ -410,7 +411,7 @@ function applyData(d) {
   const prev = state.data; state.data = d; state.fetchedAt = Date.now(); state.control = d.control;
   updateCard('russia', d.channels.russia); updateCard('ukraine', d.channels.ukraine);
   updateControl(d.control);
-  if (window.Globe && Globe.available) { Globe.setControl(d.control); Globe.setSoldiers(d.army.russia.top, d.army.ukraine.top); Globe.setChiefs({ russia: chiefUrl('russia'), ukraine: chiefUrl('ukraine') }); }
+  if (window.Globe && Globe.available) { Globe.setControl(d.control); Globe.setSoldiers(d.army.russia.top, d.army.ukraine.top); Globe.setChiefs({ russia: chiefUrl('russia'), ukraine: chiefUrl('ukraine') }); Globe.setSoldiersVisible(soldiersVisible); }
   if (!cityNodes.length) buildCities(d.cities);
   renderPixels(d);
   renderArmy('russia', d.army.russia); renderArmy('ukraine', d.army.ukraine);
@@ -443,6 +444,12 @@ if (soundBtn) {
   soundBtn.onclick = () => { Sound.setEnabled(!Sound.enabled); soundBtn.textContent = Sound.enabled ? '🔊' : '🔇'; if (Sound.enabled) Sound.siren(); };
 }
 ['pointerdown', 'keydown'].forEach((e) => window.addEventListener(e, () => Sound.init(), { once: true }));
+const eyeBtn = $('#globeEye');
+if (eyeBtn) {
+  const applyEye = () => { eyeBtn.textContent = soldiersVisible ? '👁️' : '🙈'; eyeBtn.classList.toggle('off', !soldiersVisible); if (window.Globe && Globe.available) Globe.setSoldiersVisible(soldiersVisible); };
+  eyeBtn.onclick = () => { soldiersVisible = !soldiersVisible; localStorage.setItem('sw_soldiers', soldiersVisible ? '1' : '0'); applyEye(); };
+  applyEye();
+}
 $('#logBubble').onclick = () => { logPanelOpen = !logPanelOpen; $('#logPanel').classList.toggle('show', logPanelOpen); if (logPanelOpen) { logUnread = 0; updateLogBadge(); } };
 $('#logClose').onclick = () => { logPanelOpen = false; $('#logPanel').classList.remove('show'); };
 document.querySelectorAll('[data-close]').forEach((b) => b.onclick = closeModal);
