@@ -34,6 +34,10 @@ const CONFIGURED = !!(KICK_CLIENT_ID && KICK_CLIENT_SECRET);
 const SIMULATE = !CONFIGURED;
 // chatroom IDs pour lire le chat (l'API officielle ne les fournit pas) — à définir en env.
 const CHATROOM = { russia: process.env.KICK_CHATROOM_RUSSIA || '', ukraine: process.env.KICK_CHATROOM_UKRAINE || '' };
+// persistance durable (survit aux redéploiements Render) : Upstash Redis REST
+const UPSTASH_URL = (process.env.UPSTASH_REDIS_REST_URL || '').replace(/\/$/, '');
+const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || '';
+const REMOTE = !!(UPSTASH_URL && UPSTASH_TOKEN);
 
 // --- Reglages -----------------------------------------------------------
 const RATE_PER_MIN = Number(process.env.WAR_RATE) || (process.env.WAR_DEMO === '1' || process.argv[3] === 'demo' ? 0.22 : 0.05);
@@ -103,35 +107,54 @@ function defaultState() {
     assault: { open: false, opensAt: now + ASSAULT_INTERVAL_MS, closesAt: 0, countToday: 0, dayKey: dayKeyOf(now) },
     bombs: [], bombSeq: 1,
     army: { russia: mkArmy('russia'), ukraine: mkArmy('ukraine') },
-    pixels: {},
+    pixels: {}, cooldowns: {},
     log: [{ t: now, side: 'system', msg: 'Les hostilités ont commencé. Que le meilleur streamer gagne.' }],
   };
 }
 
-function loadState() {
-  try {
-    const raw = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
-    const b = defaultState();
-    return { ...b, ...raw,
-      war: { ...b.war, ...raw.war },
-      channels: { russia: { ...b.channels.russia, ...(raw.channels && raw.channels.russia) }, ukraine: { ...b.channels.ukraine, ...(raw.channels && raw.channels.ukraine) } },
-      sim: { russia: { ...b.sim.russia, ...(raw.sim && raw.sim.russia) }, ukraine: { ...b.sim.ukraine, ...(raw.sim && raw.sim.ukraine) } },
-      rage: { russia: { ...b.rage.russia, ...(raw.rage && raw.rage.russia) }, ukraine: { ...b.rage.ukraine, ...(raw.rage && raw.rage.ukraine) } },
-      assault: { ...b.assault, ...raw.assault },
-      army: raw.army && raw.army.russia ? raw.army : b.army,
-      pixels: raw.pixels || {},
-      bombs: Array.isArray(raw.bombs) ? raw.bombs : [],
-      log: Array.isArray(raw.log) ? raw.log : b.log,
-    };
-  } catch { return defaultState(); }
+function mergeState(raw) {
+  const b = defaultState();
+  return { ...b, ...raw,
+    war: { ...b.war, ...raw.war },
+    channels: { russia: { ...b.channels.russia, ...(raw.channels && raw.channels.russia) }, ukraine: { ...b.channels.ukraine, ...(raw.channels && raw.channels.ukraine) } },
+    sim: { russia: { ...b.sim.russia, ...(raw.sim && raw.sim.russia) }, ukraine: { ...b.sim.ukraine, ...(raw.sim && raw.sim.ukraine) } },
+    rage: { russia: { ...b.rage.russia, ...(raw.rage && raw.rage.russia) }, ukraine: { ...b.rage.ukraine, ...(raw.rage && raw.rage.ukraine) } },
+    assault: { ...b.assault, ...raw.assault },
+    army: raw.army && raw.army.russia ? raw.army : b.army,
+    pixels: raw.pixels || {},
+    cooldowns: raw.cooldowns || {},
+    bombs: Array.isArray(raw.bombs) ? raw.bombs : [],
+    log: Array.isArray(raw.log) ? raw.log : b.log,
+  };
+}
+function loadStateSync() {
+  try { return mergeState(JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))); } catch { return defaultState(); }
 }
 
-let state = loadState();
-const sessions = {}; // token -> { name, camp, lastPixel, kick }
+let state = loadStateSync();
+const sessions = {}; // token -> { name, camp, kick }
 const pkce = new Map(); // state OAuth -> { verifier, createdAt }
 function b64url(buf) { return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
 
-function saveState() { try { fs.writeFileSync(STATE_FILE, JSON.stringify(state)); } catch {} }
+// --- Persistance : Upstash Redis REST si configuré, sinon fichier local ---
+let remoteSaveTimer = 0, remoteDirty = false;
+async function flushRemote() {
+  remoteSaveTimer = 0; if (!remoteDirty) return; remoteDirty = false;
+  try { await fetch(`${UPSTASH_URL}/set/warstate`, { method: 'POST', headers: { Authorization: 'Bearer ' + UPSTASH_TOKEN }, body: JSON.stringify(state) }); }
+  catch (e) { console.error('[upstash] save KO', e.message); }
+}
+function saveState() {
+  if (REMOTE) { remoteDirty = true; if (!remoteSaveTimer) remoteSaveTimer = setTimeout(flushRemote, 20000); }
+  else { try { fs.writeFileSync(STATE_FILE, JSON.stringify(state)); } catch {} }
+}
+async function loadRemote() {
+  try {
+    const r = await fetch(`${UPSTASH_URL}/get/warstate`, { headers: { Authorization: 'Bearer ' + UPSTASH_TOKEN } });
+    const j = await r.json();
+    if (j && j.result) { state = mergeState(JSON.parse(j.result)); console.log('[upstash] état restauré'); }
+    else console.log('[upstash] aucun état sauvegardé → nouveau départ');
+  } catch (e) { console.error('[upstash] load KO', e.message); }
+}
 
 // ---------------------------------------------------------------------------
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -155,8 +178,10 @@ function onChatMessage(side, user, text, id) { // <- chat Kick live
 function addToArmy(side, name, msgs, id) {
   const a = state.army[side];
   if (!a[name]) a[name] = { msgs: 0, w: 1, viewer: false };
+  const before = rankTitle(a[name].msgs);
   a[name].msgs += msgs;
   if (id && !a[name].id) a[name].id = id;
+  if (msgs > 0) { const after = rankTitle(a[name].msgs); if (after !== before) pushLog(side, `🎖️ ${name} est promu ${after} dans ${CHANNELS[side].army} !`); }
 }
 function pruneRage(side, now) {
   const arr = state.rage[side].hits, cut = now - RAGE_WINDOW_MS;
@@ -248,6 +273,7 @@ async function fetchChannelsLive() {
     ch.viewers = stream.viewer_count ?? stream.viewers ?? c.viewer_count ?? 0;
     ch.followers = c.active_subscribers_count ?? c.followers_count ?? c.followers ?? ch.followers; // abonnés
     ch.title = stream.session_title || c.stream_title || stream.title || '';
+    ch._uid = c.broadcaster_user_id || c.broadcaster_id || ch._uid;
     if (ch.live && stream.start_time) { const t = Date.parse(stream.start_time); if (t > 0) ch._startTime = t; }
     ch.source = 'live';
     const cid = CHATROOM[key] || ch._chatroomId || await resolveChatroom(key);
@@ -261,6 +287,7 @@ async function fetchChannelsLive() {
 async function refreshAvatars() {
   const ids = new Set();
   for (const side of ['russia', 'ukraine']) {
+    const u = state.channels[side]._uid; if (u && !avatarCache[u]) ids.add(u); // avatars des streamers (cartes)
     const a = state.army[side];
     Object.keys(a).sort((x, y) => a[y].msgs - a[x].msgs).slice(0, 10).forEach((n) => { if (a[n].id && !avatarCache[a[n].id]) ids.add(a[n].id); });
   }
@@ -361,7 +388,8 @@ function publicState(session) {
       role: m.role, emoji: m.emoji, flag: m.flag, side: m.side, command: m.command, url: m.url,
       live: c.live, viewers: Math.round(c.viewers), peak: Math.round(c.peak), followers: Math.round(c.followers),
       hours: round1(c.hours), uptimeSec: c.live && c.since ? Math.floor((now - c.since) / 1000) : 0,
-      title2: c.title || '', ragePerMin: state.rage[key].hits.length, rageThreshold: BOMB_THRESHOLD,
+      title2: c.title || '', avatar: (c._uid && avatarCache[c._uid]) || null,
+      ragePerMin: state.rage[key].hits.length, rageThreshold: BOMB_THRESHOLD,
       cooldownMs: Math.max(0, state.rage[key].cooldownUntil - now), bombsFired: state.rage[key].bombs,
     };
   }
@@ -376,7 +404,7 @@ function publicState(session) {
     channels, cities, bombs: state.bombs.slice(-16),
     army: { russia: rosterOf('russia', myName), ukraine: rosterOf('ukraine', myName) },
     grid: { w: GW, h: GH }, pixels: state.pixels,
-    me: session ? { name: session.name, camp: session.camp || null, kick: !!session.kick, cooldownMs: Math.max(0, (session.lastPixel || 0) + PIXEL_COOLDOWN_MS - now) } : null,
+    me: session ? { name: session.name, camp: session.camp || null, kick: !!session.kick, cooldownMs: Math.max(0, ((state.cooldowns[session.name] || 0) + PIXEL_COOLDOWN_MS) - now) } : null,
     kickConfigured: !!KICK_CLIENT_ID,
     log: state.log.slice(0, 40), serverTime: now,
   };
@@ -387,12 +415,13 @@ function placePixel(session, i) {
   if (!session || !session.camp) return { error: 'connecte-toi et choisis ton camp' };
   if (state.war.status !== 'active') return { error: 'la guerre est terminée' };
   const now = Date.now();
-  if ((session.lastPixel || 0) + PIXEL_COOLDOWN_MS > now) return { error: 'rechargement', cooldownMs: (session.lastPixel || 0) + PIXEL_COOLDOWN_MS - now };
+  const last = state.cooldowns[session.name] || 0; // cooldown par utilisateur (résiste à la reconnexion)
+  if (last + PIXEL_COOLDOWN_MS > now) return { error: 'rechargement', cooldownMs: last + PIXEL_COOLDOWN_MS - now };
   i = Math.floor(Number(i)); if (!(i >= 0 && i < GW * GH)) return { error: 'case invalide' };
   const col = i % GW, xfrac = (col + 0.5) / GW, frontOwner = ownerAt(state.russiaShare, xfrac);
   if (frontOwner !== enemyOf(session.camp)) return { error: 'tu ne peux frapper que le territoire ennemi' };
   state.pixels[i] = session.camp;
-  session.lastPixel = now;
+  state.cooldowns[session.name] = now;
   addToArmy(session.camp, session.name, 3);
   const prev = state.russiaShare;
   state.russiaShare = clamp(prev + (session.camp === 'russia' ? 0.18 : -0.18), 3, 97);
@@ -427,7 +456,12 @@ const server = http.createServer(async (req, res) => {
     try {
       const tok = await getAppToken();
       const r = await fetch(`https://api.kick.com/public/v1/channels?slug=${CHANNELS.russia.slug}&slug=${CHANNELS.ukraine.slug}`, { headers: { Authorization: 'Bearer ' + tok } });
-      return json(res, { configured: true, tokenOK: !!tok, wsSupported: typeof WebSocket !== 'undefined', chatConnected: { russia: !!chatWS.russia, ukraine: !!chatWS.ukraine }, channels: await r.json() });
+      return json(res, { configured: true, tokenOK: !!tok, wsSupported: typeof WebSocket !== 'undefined',
+        chatroomEnv: { russia: !!CHATROOM.russia, ukraine: !!CHATROOM.ukraine },
+        chatroomResolved: { russia: state.channels.russia._chatroomId || CHATROOM.russia || null, ukraine: state.channels.ukraine._chatroomId || CHATROOM.ukraine || null },
+        chatConnected: { russia: !!chatWS.russia, ukraine: !!chatWS.ukraine },
+        persist: REMOTE ? 'upstash' : 'fichier (éphémère sur Render!)',
+        channels: await r.json() });
     } catch (e) { return json(res, { configured: true, error: e.message }); }
   }
 
@@ -491,6 +525,11 @@ const server = http.createServer(async (req, res) => {
   serveStatic(req, res);
 });
 
-server.listen(PORT, () => { console.log(`\n  GOUGOULE vs YAYA -> ${PUBLIC_URL}  ${DEMO ? '[DEMO]' : ''}\n`); });
-tick().catch((e) => console.error(e));
-setInterval(() => tick().catch((e) => console.error(e)), POLL_MS);
+(async () => {
+  if (REMOTE) await loadRemote();
+  server.listen(PORT, () => { console.log(`\n  GOUGOULE vs YAYA -> ${PUBLIC_URL}  ${DEMO ? '[DEMO]' : ''}  [persist: ${REMOTE ? 'upstash' : 'fichier'}]\n`); });
+  tick().catch((e) => console.error(e));
+  setInterval(() => tick().catch((e) => console.error(e)), POLL_MS);
+})();
+// sauvegarde avant l'arrêt (déploiement Render) pour ne rien perdre
+process.on('SIGTERM', async () => { try { await flushRemote(); } catch {} process.exit(0); });

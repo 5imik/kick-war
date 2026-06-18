@@ -12,6 +12,8 @@ const state = {
   assaultWasOpen: false, cdReady: { russia: null, ukraine: null },
 };
 
+let logSeen = new Set(), logInit = false, logUnread = 0, logPanelOpen = false;
+
 const $ = (s) => document.querySelector(s);
 const nf = new Intl.NumberFormat('fr-FR');
 const fmt = (n) => nf.format(Math.round(n || 0));
@@ -51,7 +53,7 @@ function buildCard(side, ch) {
   const el = $('#card-' + side);
   el.innerHTML = `
     <div class="card-top">
-      <div class="avatar"><img class="av-img" src="${side === 'russia' ? 'opior.png' : 'yaya.png'}" alt="" onerror="this.replaceWith(document.createTextNode('${ch.emoji}'))"></div>
+      <div class="avatar">${ch.emoji}</div>
       <div class="who"><div class="name"><span class="nm"></span></div><div class="faction"></div><div class="role"></div></div>
       <div class="livebadge"><span class="lbl">&hellip;</span></div>
     </div>
@@ -78,6 +80,7 @@ function buildCard(side, ch) {
     viewers: el.querySelector('.viewers'), uptime: el.querySelector('.uptime'), hours: el.querySelector('.hours'),
     peak: el.querySelector('.peak'), followers: el.querySelector('.followers'), bombs: el.querySelector('.bombs'),
     rcount: el.querySelector('.rcount'), rfill: el.querySelector('.rage-fill'), rcd: el.querySelector('.rage-cd'),
+    avatar: el.querySelector('.avatar'), avSrc: '',
   };
 }
 function updateCard(side, ch) {
@@ -88,6 +91,7 @@ function updateCard(side, ch) {
   r.viewers.innerHTML = ch.live ? fmt(ch.viewers) : '<small>hors ligne</small>';
   r.hours.textContent = fmtHours(ch.hours); r.peak.textContent = fmt(ch.peak);
   r.followers.textContent = fmt(ch.followers); r.bombs.textContent = fmt(ch.bombsFired);
+  if (ch.avatar && r.avSrc !== ch.avatar) { r.avSrc = ch.avatar; r.avatar.innerHTML = `<img class="av-img" src="${ch.avatar}" alt="" onerror="this.parentElement.textContent='${ch.emoji}'">`; }
   const pct = Math.min(100, (ch.ragePerMin / ch.rageThreshold) * 100);
   r.rcount.textContent = ch.ragePerMin; r.rfill.style.width = pct + '%'; r.rfill.classList.toggle('hot', pct >= 80);
 }
@@ -215,6 +219,12 @@ function renderPixels(d) {
     const attackable = canHit && base === (me.camp === 'russia' ? 'ukraine' : 'russia');
     c.classList.toggle('hit', !!attackable);
   }
+  const hint = $('#pxHint');
+  if (hint) {
+    if (!me) hint.textContent = 'Connecte-toi avec Kick pour combattre.';
+    else if (!me.camp) hint.textContent = 'Choisis ton camp pour pouvoir frapper.';
+    else hint.innerHTML = `Tu es dans ${me.camp === 'russia' ? "👹 l'Armée de la Goule" : '🎖️ l\'Armée de Yaya'} — frappe les cases <b>surlignées</b> (territoire ennemi). 1 frappe / heure.`;
+  }
 }
 async function placePixel(i) {
   if (!state.data) return;
@@ -302,11 +312,23 @@ function closeModal() { $('#infoModal').classList.remove('show'); $('#loginModal
 
 /* ----------------------- Depeches + ticker ----------------------- */
 const TAG = { russia: 'GOUGOULE', ukraine: 'YAYA', system: 'FRONT' };
+function makeLogLi(e) {
+  const li = document.createElement('li'); li.className = e.side;
+  li.innerHTML = `<span class="time">${fmtClock(e.t)}</span><span class="tag">${TAG[e.side] || 'FRONT'}</span><span class="msg"></span>`;
+  li.querySelector('.msg').textContent = e.msg; return li;
+}
+function updateLogBadge() { const b = $('#logBadge'); if (b) { b.textContent = logUnread > 99 ? '99+' : logUnread; b.classList.toggle('show', logUnread > 0); } }
 function renderLog(log) {
-  const ul = $('#log'); ul.innerHTML = '';
-  for (const e of log) { const li = document.createElement('li'); li.className = e.side; li.innerHTML = `<span class="time">${fmtClock(e.t)}</span><span class="tag">${TAG[e.side] || 'FRONT'}</span><span class="msg"></span>`; li.querySelector('.msg').textContent = e.msg; ul.appendChild(li); }
+  const ul = $('#log'); if (!ul) return;
+  const fresh = [];
+  for (const e of log) { const k = e.t + '|' + e.msg; if (!logSeen.has(k)) { logSeen.add(k); fresh.push(e); } }
+  if (!fresh.length) return;                                  // rien de neuf -> on ne touche à rien (plus de saut)
+  for (const e of fresh.slice().reverse()) ul.insertBefore(makeLogLi(e), ul.firstChild);
+  while (ul.children.length > 60) ul.removeChild(ul.lastChild);
   const items = log.slice(0, 8).map((e) => `<span><b>${TAG[e.side] || 'FRONT'}</b> ${e.msg}</span>`).join('');
   $('#tickerTrack').innerHTML = items + items;
+  if (logInit && !logPanelOpen) { logUnread += fresh.length; updateLogBadge(); }
+  logInit = true;
 }
 
 /* ----------------------- Bombe FX + toast ----------------------- */
@@ -403,6 +425,8 @@ if (soundBtn) {
   soundBtn.onclick = () => { Sound.setEnabled(!Sound.enabled); soundBtn.textContent = Sound.enabled ? '🔊' : '🔇'; if (Sound.enabled) Sound.siren(); };
 }
 ['pointerdown', 'keydown'].forEach((e) => window.addEventListener(e, () => Sound.init(), { once: true }));
+$('#logBubble').onclick = () => { logPanelOpen = !logPanelOpen; $('#logPanel').classList.toggle('show', logPanelOpen); if (logPanelOpen) { logUnread = 0; updateLogBadge(); } };
+$('#logClose').onclick = () => { logPanelOpen = false; $('#logPanel').classList.remove('show'); };
 document.querySelectorAll('[data-close]').forEach((b) => b.onclick = closeModal);
 document.querySelectorAll('.modal').forEach((m) => m.addEventListener('click', (e) => { if (e.target === m) closeModal(); }));
 poll();

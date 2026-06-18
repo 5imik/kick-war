@@ -166,6 +166,18 @@ main{max-width:1080px;margin:0 auto;padding:clamp(14px,3vw,26px)}
 .ticker-track b{color:var(--ukraine2)}
 .ticker:hover .ticker-track{animation-play-state:paused}
 
+/* bulle dépêches (bas droite) */
+.log-bubble{position:fixed;right:16px;bottom:46px;z-index:9;width:52px;height:52px;border-radius:50%;border:1px solid var(--line);background:var(--panel2);color:var(--txt);font-size:22px;cursor:pointer;box-shadow:var(--shadow);display:grid;place-items:center}
+.log-bubble:hover{filter:brightness(1.2)}
+.log-badge{position:absolute;top:-4px;right:-4px;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:var(--russia);color:#fff;font-size:11px;font-weight:700;display:none;align-items:center;justify-content:center}
+.log-badge.show{display:flex}
+.log-panel{position:fixed;right:16px;bottom:106px;z-index:9;width:min(360px,calc(100vw - 32px));max-height:60vh;display:none;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+.log-panel.show{display:flex}
+.log-panel-head{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);font-weight:700;font-size:13px;letter-spacing:1px}
+.log-panel-head .dot{width:9px;height:9px;border-radius:50%;background:var(--russia);box-shadow:0 0 9px var(--russia);display:inline-block;margin-right:6px}
+.log-panel-head button{background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1}
+.log-panel .log{margin:0;padding:10px;max-height:none}
+
 /* end overlay */
 .end-overlay{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(6,8,12,.86);backdrop-filter:blur(4px)}
 .end-overlay.show{display:flex;animation:fadein .4s ease}
@@ -200,7 +212,9 @@ main{max-width:1080px;margin:0 auto;padding:clamp(14px,3vw,26px)}
 .pixelwrap{margin-top:18px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
 .px-head{display:flex;justify-content:space-between;align-items:center;font-size:13px;letter-spacing:2px;font-weight:700}
 .px-status{font-size:12px;letter-spacing:0;color:var(--muted);font-weight:600}
-.pixel-grid{display:grid;grid-template-columns:repeat(var(--gw,48),1fr);gap:1px;margin:12px 0 8px;background:#0c1119;border:1px solid var(--line);border-radius:8px;padding:3px}
+.px-zones{display:flex;justify-content:space-between;font-size:11px;font-weight:700;letter-spacing:.5px;margin:8px 2px 0}
+.pz-u{color:#9cc2ff}.pz-r{color:#ff9d9d}
+.pixel-grid{display:grid;grid-template-columns:repeat(var(--gw,48),1fr);gap:1px;margin:8px 0;background:#0c1119;border:1px solid var(--line);border-radius:8px;padding:3px}
 .px{aspect-ratio:1;border:none;padding:0;border-radius:1px;cursor:default;transition:background .3s}
 .px.hit{cursor:crosshair;box-shadow:0 0 0 1px rgba(255,255,255,.25) inset}
 .px.hit:hover{filter:brightness(1.6);outline:1px solid #fff}

@@ -80,8 +80,9 @@
     <!-- Pixel war -->
     <section class="pixelwrap">
       <div class="px-head"><span>⚔️ PIXEL WAR</span><span id="pxStatus" class="px-status"></span></div>
+      <div class="px-zones"><span class="pz pz-u">🎖️ Territoire Yaya</span><span class="pz pz-r">Territoire La Goule 👹</span></div>
       <div id="pixelGrid" class="pixel-grid"></div>
-      <p class="px-hint">Connecte-toi, choisis ton camp, puis frappe une case du <b>territoire ennemi</b>. Une frappe par heure et par soldat.</p>
+      <p class="px-hint" id="pxHint">Connecte-toi, choisis ton camp, puis frappe une case du territoire ennemi.</p>
     </section>
 
     <!-- Armees -->
@@ -108,11 +109,6 @@
       </div>
     </section>
 
-    <section class="warlog">
-      <h2><span class="dot"></span> Dépêches du front</h2>
-      <ul id="log" class="log"></ul>
-    </section>
-
     <section class="journal" id="journal"></section>
   </main>
 
@@ -129,6 +125,13 @@
   </footer>
 
   <div class="ticker"><div id="tickerTrack" class="ticker-track"></div></div>
+
+  <!-- Bulle dépêches (bas droite) -->
+  <button id="logBubble" class="log-bubble" type="button" title="Dépêches du front">📰<span id="logBadge" class="log-badge"></span></button>
+  <div id="logPanel" class="log-panel">
+    <div class="log-panel-head"><span><span class="dot"></span> Dépêches du front</span><button id="logClose" type="button">&times;</button></div>
+    <ul id="log" class="log"></ul>
+  </div>
 
   <!-- Ecran de fin -->
   <div id="endOverlay" class="end-overlay"><div class="treaty" id="treaty"></div></div>
