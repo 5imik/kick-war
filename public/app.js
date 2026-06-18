@@ -83,6 +83,15 @@ function buildCard(side, ch) {
     avatar: el.querySelector('.avatar'), avSrc: '',
   };
 }
+function applyAvatar(side) {
+  const r = cardRefs[side]; if (!r) return;
+  const ch = state.data && state.data.channels[side]; if (!ch) return;
+  const url = r.avCustom || ch.avatar || null;          // priorité : art perso > photo Kick > emoji
+  const key = url || ('emoji:' + ch.emoji);
+  if (r.avKey === key) return; r.avKey = key;
+  if (url) r.avatar.innerHTML = `<img class="av-img" src="${url}" alt="" onerror="this.parentElement.textContent='${ch.emoji}'">`;
+  else r.avatar.textContent = ch.emoji;
+}
 function updateCard(side, ch) {
   if (!cardRefs[side]) buildCard(side, ch);
   const r = cardRefs[side];
@@ -91,7 +100,15 @@ function updateCard(side, ch) {
   r.viewers.innerHTML = ch.live ? fmt(ch.viewers) : '<small>hors ligne</small>';
   r.hours.textContent = fmtHours(ch.hours); r.peak.textContent = fmt(ch.peak);
   r.followers.textContent = fmt(ch.followers); r.bombs.textContent = fmt(ch.bombsFired);
-  if (ch.avatar && r.avSrc !== ch.avatar) { r.avSrc = ch.avatar; r.avatar.innerHTML = `<img class="av-img" src="${ch.avatar}" alt="" onerror="this.parentElement.textContent='${ch.emoji}'">`; }
+  if (!r.avProbed) { // teste une seule fois l'art perso (public/opior.png | yaya.png)
+    r.avProbed = true;
+    const custom = side === 'russia' ? 'opior.png' : 'yaya.png';
+    const test = new Image();
+    test.onload = () => { r.avCustom = custom; applyAvatar(side); };
+    test.onerror = () => { r.avCustom = null; applyAvatar(side); };
+    test.src = custom;
+  }
+  applyAvatar(side);
   const pct = Math.min(100, (ch.ragePerMin / ch.rageThreshold) * 100);
   r.rcount.textContent = ch.ragePerMin; r.rfill.style.width = pct + '%'; r.rfill.classList.toggle('hot', pct >= 80);
 }
