@@ -33,7 +33,11 @@ const KICK_CLIENT_SECRET = process.env.KICK_CLIENT_SECRET || '';
 const CONFIGURED = !!(KICK_CLIENT_ID && KICK_CLIENT_SECRET);
 const SIMULATE = !CONFIGURED;
 // chatroom IDs pour lire le chat (l'API officielle ne les fournit pas) — à définir en env.
-const CHATROOM = { russia: process.env.KICK_CHATROOM_RUSSIA || '', ukraine: process.env.KICK_CHATROOM_UKRAINE || '' };
+// chatroom IDs Kick (publics, stables) — défauts intégrés, surchargeables par env
+const CHATROOM = {
+  russia: process.env.KICK_CHATROOM_RUSSIA || '64463412',   // theblackwall (Opior)
+  ukraine: process.env.KICK_CHATROOM_UKRAINE || '',         // yayaaakl (à compléter)
+};
 // persistance durable (survit aux redéploiements Render) : Upstash Redis REST
 const UPSTASH_URL = (process.env.UPSTASH_REDIS_REST_URL || '').replace(/\/$/, '');
 const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || '';
