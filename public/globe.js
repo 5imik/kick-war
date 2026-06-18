@@ -8,7 +8,8 @@ window.Globe = (function () {
   // points representatifs (lat,lng)
   const POS = { russia: { lat: 57, lng: 65 }, ukraine: { lat: 49, lng: 31 } };
 
-  let renderer, scene, camera, globeGroup, soldierGroup, markers = {}, anims = [], raf = 0, lastT = 0, soldiersKey = '';
+  let renderer, scene, camera, globeGroup, soldierGroup, controls, markers = {}, anims = [], raf = 0, lastT = 0, soldiersKey = '';
+  const chiefSprites = {}, chiefKey = {};
   let ok = false;
 
   function latLng(lat, lng, r) {
@@ -88,6 +89,11 @@ window.Globe = (function () {
       );
       globeGroup.add(sphere);
       globeGroup.add(graticule());
+      // texture Terre réaliste (CDN avec CORS) ; repli sur la sphère stylisée si échec
+      new THREE.TextureLoader().setCrossOrigin('anonymous').load(
+        'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg',
+        (tex) => { sphere.material.map = tex; sphere.material.color.set(0xffffff); sphere.material.emissive.set(0x0b0f14); sphere.material.needsUpdate = true; }
+      );
 
       // halo atmosphere
       const halo = radialSprite(0x2f6fae, 5.2); halo.position.set(0, 0, 0); scene.add(halo);
@@ -100,7 +106,7 @@ window.Globe = (function () {
         dot.position.copy(base);
         const glow = radialSprite(COL[k], 0.6); glow.position.copy(base.clone().multiplyScalar(1.01));
         const label = textSprite(k === 'russia' ? 'GOUGOULE' : 'YAYA', COL[k]);
-        label.position.copy(base.clone().multiplyScalar(1.25));
+        label.position.copy(base.clone().multiplyScalar(1.55));
         grp.add(dot); grp.add(glow); grp.add(label);
         globeGroup.add(grp);
         markers[k] = { base, glow, dot, pulse: 0 };
@@ -112,6 +118,16 @@ window.Globe = (function () {
       camera.position.copy(center.clone().multiplyScalar(3.55));
       camera.up.set(0, 1, 0);
       camera.lookAt(0, 0, 0);
+
+      // contrôles : zoom + déplacement à la souris, mais PAS de rotation auto (globe statique)
+      if (THREE.OrbitControls) {
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true; controls.dampingFactor = 0.08;
+        controls.autoRotate = false; controls.enablePan = false;
+        controls.rotateSpeed = 0.5; controls.zoomSpeed = 0.7;
+        controls.minDistance = 2.0; controls.maxDistance = 8;
+        controls.target.set(0, 0, 0); controls.update();
+      }
 
       ok = true;
       window.addEventListener('resize', onResize);
@@ -166,6 +182,33 @@ window.Globe = (function () {
     globeGroup.add(ring);
     const flash = radialSprite(0xffe3a0, 0.9); flash.position.copy(pos.clone().multiplyScalar(1.03)); globeGroup.add(flash);
     anims.push({ type: 'boom', ring, flash, t: 0, dur: 0.9 });
+    // flammes (particules de feu qui jaillissent)
+    const nrm = pos.clone().normalize();
+    for (let i = 0; i < 14; i++) {
+      const col = [0xff3b1a, 0xff7a1a, 0xffb028][i % 3];
+      const f = radialSprite(col, 0.28); f.position.copy(pos.clone().multiplyScalar(1.03));
+      const vel = nrm.clone().multiplyScalar(0.012 + Math.random() * 0.02).add(new THREE.Vector3((Math.random() - 0.5) * 0.03, (Math.random() - 0.5) * 0.03, (Math.random() - 0.5) * 0.03));
+      globeGroup.add(f);
+      anims.push({ type: 'flame', el: f, vel, t: 0, dur: 0.7 + Math.random() * 0.5 });
+    }
+  }
+
+  function setChiefs(urls) {
+    if (!ok) return;
+    for (const side of ['russia', 'ukraine']) {
+      const url = urls && urls[side];
+      if (!url || chiefKey[side] === url) continue; chiefKey[side] = url;
+      const img = new Image(); img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        if (chiefSprites[side]) globeGroup.remove(chiefSprites[side]);
+        const t = new THREE.Texture(img); t.needsUpdate = true;
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false }));
+        sp.position.copy(markers[side].base.clone().multiplyScalar(1.13));
+        sp.scale.set(0.6, 0.6, 1);
+        globeGroup.add(sp); chiefSprites[side] = sp;
+      };
+      img.src = url;
+    }
   }
 
   function avatarSprite(initial, color) {
@@ -215,6 +258,7 @@ window.Globe = (function () {
     raf = requestAnimationFrame(loop);
     const now = performance.now();
     const dt = Math.min(0.05, (now - lastT) / 1000); lastT = now;
+    if (controls) controls.update();
 
     for (const k in markers) {
       const m = markers[k];
@@ -242,10 +286,15 @@ window.Globe = (function () {
         a.ring.material.opacity = 0.9 * (1 - a.t);
         a.flash.material.opacity = Math.max(0, 0.9 * (1 - a.t * 1.6));
         if (a.t >= 1) { globeGroup.remove(a.ring); globeGroup.remove(a.flash); anims.splice(i, 1); }
+      } else if (a.type === 'flame') {
+        a.el.position.add(a.vel); a.vel.multiplyScalar(0.96);
+        a.el.material.opacity = Math.max(0, 0.85 * (1 - a.t));
+        const s = 0.28 * (1 - a.t * 0.4); a.el.scale.set(s, s, 1);
+        if (a.t >= 1) { globeGroup.remove(a.el); anims.splice(i, 1); }
       }
     }
     renderer.render(scene, camera);
   }
 
-  return { init, setControl, addBomb, setSoldiers, get available() { return ok; } };
+  return { init, setControl, addBomb, setSoldiers, setChiefs, get available() { return ok; } };
 })();

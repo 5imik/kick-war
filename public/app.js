@@ -83,6 +83,7 @@ function buildCard(side, ch) {
     avatar: el.querySelector('.avatar'), avSrc: '',
   };
 }
+function chiefUrl(side) { const r = cardRefs[side], ch = state.data && state.data.channels[side]; return (r && r.avCustom) || (ch && ch.avatar) || null; }
 function applyAvatar(side) {
   const r = cardRefs[side]; if (!r) return;
   const ch = state.data && state.data.channels[side]; if (!ch) return;
@@ -176,8 +177,8 @@ function buildCities(cities) {
   for (const c of cities) {
     const g = document.createElementNS(SVGNS, 'g'); const cx = c.x * W, cy = c.y * H, ar = c.x > 0.82;
     const halo = document.createElementNS(SVGNS, 'circle'); halo.setAttribute('cx', cx); halo.setAttribute('cy', cy); halo.setAttribute('r', 9); halo.setAttribute('fill', 'none'); halo.setAttribute('stroke-width', '2'); halo.setAttribute('opacity', '0');
-    const dot = document.createElementNS(SVGNS, 'circle'); dot.setAttribute('cx', cx); dot.setAttribute('cy', cy); dot.setAttribute('r', 5); dot.setAttribute('stroke', '#0b1018'); dot.setAttribute('stroke-width', '1.5'); dot.style.transition = 'fill .6s ease';
-    const label = document.createElementNS(SVGNS, 'text'); label.setAttribute('x', ar ? cx - 10 : cx + 10); label.setAttribute('y', cy + 4); label.setAttribute('text-anchor', ar ? 'end' : 'start'); label.setAttribute('font-size', '13'); label.setAttribute('font-weight', '600'); label.setAttribute('fill', '#e8eef6'); label.setAttribute('paint-order', 'stroke'); label.setAttribute('stroke', '#0b1018'); label.setAttribute('stroke-width', '3'); label.textContent = c.name;
+    const dot = document.createElementNS(SVGNS, 'circle'); dot.setAttribute('cx', cx); dot.setAttribute('cy', cy); dot.setAttribute('r', c.camp ? 9 : 5); dot.setAttribute('stroke', c.camp ? '#fff' : '#0b1018'); dot.setAttribute('stroke-width', c.camp ? 2.5 : 1.5); dot.style.transition = 'fill .6s ease';
+    const label = document.createElementNS(SVGNS, 'text'); label.setAttribute('x', ar ? cx - 10 : cx + 12); label.setAttribute('y', cy + 4); label.setAttribute('text-anchor', ar ? 'end' : 'start'); label.setAttribute('font-size', c.camp ? '16' : '13'); label.setAttribute('font-weight', c.camp ? '800' : '600'); label.setAttribute('fill', '#e8eef6'); label.setAttribute('paint-order', 'stroke'); label.setAttribute('stroke', '#0b1018'); label.setAttribute('stroke-width', c.camp ? 4 : 3); label.textContent = (c.camp ? '★ ' : '') + c.name;
     g.append(halo, dot, label); citiesG.appendChild(g); cityNodes.push({ name: c.name, x: c.x, dot, halo, flash: 0 });
   }
 }
@@ -409,7 +410,7 @@ function applyData(d) {
   const prev = state.data; state.data = d; state.fetchedAt = Date.now(); state.control = d.control;
   updateCard('russia', d.channels.russia); updateCard('ukraine', d.channels.ukraine);
   updateControl(d.control);
-  if (window.Globe && Globe.available) { Globe.setControl(d.control); Globe.setSoldiers(d.army.russia.top, d.army.ukraine.top); }
+  if (window.Globe && Globe.available) { Globe.setControl(d.control); Globe.setSoldiers(d.army.russia.top, d.army.ukraine.top); Globe.setChiefs({ russia: chiefUrl('russia'), ukraine: chiefUrl('ukraine') }); }
   if (!cityNodes.length) buildCities(d.cities);
   renderPixels(d);
   renderArmy('russia', d.army.russia); renderArmy('ukraine', d.army.ukraine);

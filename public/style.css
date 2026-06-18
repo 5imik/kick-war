@@ -57,9 +57,8 @@ main{max-width:1080px;margin:0 auto;padding:clamp(14px,3vw,26px)}
 .card-ukraine::after{background:radial-gradient(400px 200px at 100% 0,var(--ukraine),transparent 70%)}
 .card>*{position:relative;z-index:1}
 .card-top{display:flex;align-items:flex-start;gap:12px}
-.avatar{width:52px;height:52px;flex:none;border-radius:12px;display:grid;place-items:center;font-size:28px;border:1px solid var(--line);background:#0c1119}
-.card-russia .avatar{box-shadow:0 0 0 2px rgba(226,59,59,.35) inset}
-.card-ukraine .avatar{box-shadow:0 0 0 2px rgba(59,130,246,.35) inset}
+.avatar{width:88px;height:88px;flex:none;border-radius:12px;display:grid;place-items:center;font-size:46px;background:transparent}
+.av-img{width:100%;height:100%;object-fit:contain;display:block;filter:drop-shadow(0 4px 10px rgba(0,0,0,.5))}
 .who{flex:1;min-width:0}
 .who .name{font-size:21px;font-weight:700;line-height:1.05}
 .who .faction{font-size:13px;margin-top:2px;font-weight:600}
@@ -117,7 +116,6 @@ main{max-width:1080px;margin:0 auto;padding:clamp(14px,3vw,26px)}
 #globe{flex:1;width:100%;min-height:340px}
 #globe canvas{display:block}
 .globe-cap{text-align:center;color:var(--muted);font-size:11.5px;letter-spacing:1.5px;text-transform:uppercase;padding:8px}
-.av-img{width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block}
 
 /* map */
 .mapwrap{position:relative;margin-top:16px;border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}

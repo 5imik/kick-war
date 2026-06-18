@@ -72,6 +72,10 @@ const CITIES = [
   { name: 'Cappuccino-ma-Reine', x: 0.10, y: 0.50 },
   { name: 'Le Ledger Perdu', x: 0.33, y: 0.16 },
   { name: 'Pâtes-au-Poivre', x: 0.76, y: 0.18 },
+  { name: 'Espagne', x: 0.18, y: 0.46 },
+  { name: 'Tour', x: 0.70, y: 0.52 },
+  { name: 'Camp de Yaya', x: 0.035, y: 0.50, camp: true },
+  { name: 'Camp de la Goule', x: 0.965, y: 0.50, camp: true },
 ];
 
 const PERSONA = {
@@ -397,7 +401,7 @@ function publicState(session) {
       cooldownMs: Math.max(0, state.rage[key].cooldownUntil - now), bombsFired: state.rage[key].bombs,
     };
   }
-  const cities = CITIES.map((c) => ({ name: c.name, x: c.x, y: c.y, owner: ownerAt(share, c.x) }));
+  const cities = CITIES.map((c) => ({ name: c.name, x: c.x, y: c.y, owner: ownerAt(share, c.x), camp: !!c.camp }));
   const endsAt = state.war.start + state.war.durationDays * 86400000;
   const myName = session ? session.name : null;
   return {
@@ -531,6 +535,12 @@ const server = http.createServer(async (req, res) => {
 
 (async () => {
   if (REMOTE) await loadRemote();
+  // migration unique : remettre le territoire à 65/35 (Opior) sans toucher au reste
+  if (!state._migControl65) {
+    state.russiaShare = 65; state._migControl65 = true;
+    console.log('[migration] territoire remis à 65% Opior / 35% Yaya');
+    if (REMOTE) { remoteDirty = true; await flushRemote(); } else saveState();
+  }
   server.listen(PORT, () => { console.log(`\n  GOUGOULE vs YAYA -> ${PUBLIC_URL}  ${DEMO ? '[DEMO]' : ''}  [persist: ${REMOTE ? 'upstash' : 'fichier'}]\n`); });
   tick().catch((e) => console.error(e));
   setInterval(() => tick().catch((e) => console.error(e)), POLL_MS);
