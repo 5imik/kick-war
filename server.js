@@ -407,7 +407,7 @@ function publicState(session) {
   return {
     control: share,
     commands: { russia: CHANNELS.russia.command, ukraine: CHANNELS.ukraine.command },
-    war: { status: state.war.status, winner: state.war.winner, start: state.war.start, endsAt, remainingMs: Math.max(0, endsAt - now), durationDays: state.war.durationDays },
+    war: { status: state.war.status, winner: state.war.winner, surrender: !!state.war.surrender, start: state.war.start, endsAt, remainingMs: Math.max(0, endsAt - now), durationDays: state.war.durationDays },
     assault: { open: state.assault.open, countToday: state.assault.countToday, limit: ASSAULT_LIMIT, opensInMs: state.assault.open ? 0 : Math.max(0, state.assault.opensAt - now), closesInMs: state.assault.open ? Math.max(0, state.assault.closesAt - now) : 0 },
     channels, cities, bombs: state.bombs.slice(-16),
     army: { russia: rosterOf('russia', myName), ukraine: rosterOf('ukraine', myName) },
@@ -539,6 +539,14 @@ const server = http.createServer(async (req, res) => {
   if (!state._migControl65) {
     state.russiaShare = 65; state._migControl65 = true;
     console.log('[migration] territoire remis à 65% Opior / 35% Yaya');
+    if (REMOTE) { remoteDirty = true; await flushRemote(); } else saveState();
+  }
+  // fin de guerre : Yaya capitule, victoire de la Goule par abandon (migration unique)
+  if (!state._migEndGoule) {
+    state.war.status = 'ended'; state.war.winner = 'russia'; state.war.surrender = true;
+    state.russiaShare = 92; state._migEndGoule = true;
+    pushLog('russia', '🏳️ Yaya sort le drapeau blanc. VICTOIRE DU GÉNÉRAL GOUGOULE par abandon !');
+    console.log('[migration] guerre terminée — victoire de la Goule (abandon de Yaya)');
     if (REMOTE) { remoteDirty = true; await flushRemote(); } else saveState();
   }
   server.listen(PORT, () => { console.log(`\n  GOUGOULE vs YAYA -> ${PUBLIC_URL}  ${DEMO ? '[DEMO]' : ''}  [persist: ${REMOTE ? 'upstash' : 'fichier'}]\n`); });

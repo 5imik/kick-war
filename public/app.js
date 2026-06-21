@@ -369,16 +369,38 @@ function updateAssault(d) {
   if (open && !state.assaultWasOpen) Sound.siren();
   state.assaultWasOpen = open;
 }
+let endDismissed = false;
+window.closeEnd = () => { endDismissed = true; document.getElementById('endOverlay').classList.remove('show'); };
 function renderEnd(war, channels) {
   const o = $('#endOverlay');
-  if (war.status !== 'ended') { o.classList.remove('show'); return; }
-  if (o.classList.contains('show')) return;
-  const w = channels[war.winner], l = channels[war.winner === 'russia' ? 'ukraine' : 'russia'], pct = war.winner === 'russia' ? state.control : 100 - state.control;
-  $('#treaty').innerHTML = `<div class="treaty-top">★ ★ ★</div><h2>TRAITÉ DE PAIX</h2><p class="treaty-sub">Édition finale — Front des Streams</p>
-    <div class="treaty-win" style="color:${COL[war.winner]}">${w.flag} ${w.title}</div>
-    <p class="treaty-line"><b>${w.name}</b> (${w.army}) remporte la guerre avec <b>${Math.round(pct)}%</b> du territoire.</p>
-    <p class="treaty-loser">${l.name} capitule après 7 jours de combats.</p>
-    <button class="treaty-btn" onclick="document.getElementById('endOverlay').classList.remove('show')">Fermer</button>`;
+  if (war.status !== 'ended') { o.classList.remove('show'); endDismissed = false; return; }
+  if (endDismissed || o.classList.contains('show')) return;
+  const w = channels[war.winner], l = channels[war.winner === 'russia' ? 'ukraine' : 'russia'];
+  const pct = war.winner === 'russia' ? state.control : 100 - state.control;
+  const wImg = war.winner === 'russia' ? 'opior.png' : 'yaya.png';
+  const lImg = war.winner === 'russia' ? 'yaya.png' : 'opior.png';
+  $('#treaty').innerHTML = `
+    <div class="vic">
+      <div class="vic-top">★ ★ ★ &nbsp; ${war.surrender ? 'CAPITULATION' : 'TRAITÉ DE PAIX'} &nbsp; ★ ★ ★</div>
+      <h2 class="vic-title" style="color:${COL[war.winner]}">VICTOIRE DE ${w.title.toUpperCase()}</h2>
+      <div class="vic-imgs">
+        <div class="vic-winner">
+          <div class="vic-crown">👑</div>
+          <img src="${wImg}" alt="" onerror="this.replaceWith(document.createTextNode('${w.emoji}'))">
+          <div class="vic-name" style="color:${COL[war.winner]}">${w.flag} ${w.title}</div>
+          <div class="vic-tag win">VAINQUEUR</div>
+        </div>
+        <div class="vic-vs">⚔️</div>
+        <div class="vic-loser">
+          <div class="vic-flag">🏳️</div>
+          <img src="${lImg}" alt="" onerror="this.replaceWith(document.createTextNode('${l.emoji}'))">
+          <div class="vic-name">${l.name}</div>
+          <div class="vic-tag dead">☠️ ABATTU · ABANDON</div>
+        </div>
+      </div>
+      <p class="vic-line"><b>${l.name}</b> a sorti le drapeau blanc et capitule. <b>${w.name}</b> (${w.army}) remporte la guerre <b>par abandon</b> avec <b>${Math.round(pct)}%</b> du territoire.</p>
+      <button class="treaty-btn" onclick="closeEnd()">Fermer</button>
+    </div>`;
   o.classList.add('show');
 }
 
